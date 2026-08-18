@@ -1,0 +1,816 @@
+/* ==========================================================================
+   READER VIEW STYLES (Bottom Toolbar, Dual-Page Spread & Precise Text Layer)
+   ========================================================================== */
+
+.reader-container {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background-color: var(--bg-app);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* Main Reader Body */
+.reader-body {
+  flex: 1;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Reader Sidebar Column */
+.reader-sidebar {
+  width: 320px;
+  background-color: var(--bg-sidebar);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  transition: margin-left 0.3s ease;
+  z-index: 80;
+  flex-shrink: 0;
+}
+
+.reader-sidebar.collapsed {
+  margin-left: -320px;
+}
+
+.sidebar-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  padding: 6px;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-surface);
+}
+
+.tab-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 2px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: center;
+  border-radius: var(--radius-sm);
+  border: none;
+  border-bottom: 2px solid transparent;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  gap: 3px;
+}
+
+.tab-btn:hover {
+  color: var(--text-main);
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.tab-btn.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  background-color: var(--bg-sidebar);
+  font-weight: 700;
+}
+
+.sidebar-panel {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Page Thumbnails Column */
+.thumbnails-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.thumbnail-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: var(--radius-md);
+  border: 2px solid transparent;
+  transition: all var(--transition-fast);
+}
+
+.thumb-bookmark-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-full);
+  background-color: rgba(15, 23, 42, 0.75);
+  color: #94a3b8;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: all var(--transition-fast);
+}
+
+.thumb-bookmark-btn:hover {
+  transform: scale(1.15);
+  color: #ffffff;
+}
+
+.thumb-bookmark-btn.active {
+  background-color: var(--accent-favorite);
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.6);
+}
+
+.thumbnail-item:hover {
+  background-color: var(--bg-surface);
+}
+
+.thumbnail-item.active {
+  border-color: var(--primary);
+  background-color: var(--primary-light);
+}
+
+.thumbnail-canvas-wrapper {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  background-color: #fff;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.thumbnail-canvas-wrapper canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.thumbnail-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* Horizontal Reader Viewport */
+.reader-viewport {
+  flex: 1;
+  overflow: auto !important;
+  background-color: var(--bg-app);
+  user-select: text;
+  scroll-behavior: smooth;
+  padding: 32px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.6) rgba(15, 23, 42, 0.3);
+}
+
+/* Highly Visible Custom Scrollbars (Vertical & Horizontal) */
+.reader-viewport::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.reader-viewport::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.3);
+  border-radius: var(--radius-full);
+}
+
+.reader-viewport::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.6);
+  border-radius: var(--radius-full);
+  border: 2px solid rgba(15, 23, 42, 0.3);
+}
+
+.reader-viewport::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(248, 250, 252, 0.8);
+}
+
+/* Horizontal & Vertical Page Container - Triggers full 100% scroll/pan in 2-page spread mode */
+.page-container-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 24px;
+  background: transparent !important;
+  padding: 32px !important;
+  border: none !important;
+  box-shadow: none !important;
+  margin: auto;
+  min-width: max-content;
+  min-height: max-content;
+  box-sizing: border-box;
+}
+
+.page-container-wrapper.spread-mode {
+  gap: 24px;
+  background: transparent !important;
+  border: none !important;
+  padding: 32px !important;
+}
+
+/* PDF Page View - Clean paper edge delimited ONLY by a realistic soft dark shadow texture */
+.pdf-page-view {
+  position: relative;
+  background-color: var(--pdf-bg);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.2);
+  border: none !important;
+  border-radius: 2px;
+  overflow: hidden;
+  user-select: text !important;
+}
+
+[data-theme="dark"] .pdf-page-view {
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  outline: none !important;
+  background-color: #111827;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45) !important;
+}
+
+.pdf-canvas {
+  display: block;
+  margin: 0 auto;
+  pointer-events: none;
+  filter: var(--pdf-filter);
+  transition: filter 0.3s ease;
+}
+
+/* Subtle, Slower & Realistic 3D Book Page Curl Animation (0.75s) */
+@keyframes realisticPageCurlNext {
+  0% {
+    transform-origin: left center;
+    transform: perspective(1800px) rotateY(0deg);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  }
+  38% {
+    transform-origin: left center;
+    transform: perspective(1800px) rotateY(-14deg) scale(0.992) skewY(-0.4deg);
+    box-shadow: -10px 8px 22px rgba(0, 0, 0, 0.2);
+  }
+  70% {
+    transform-origin: left center;
+    transform: perspective(1800px) rotateY(-4deg) scale(0.998) skewY(-0.1deg);
+    box-shadow: -4px 4px 12px rgba(0, 0, 0, 0.14);
+  }
+  100% {
+    transform-origin: left center;
+    transform: perspective(1800px) rotateY(0deg) scale(1) skewY(0deg);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  }
+}
+
+@keyframes realisticPageCurlPrev {
+  0% {
+    transform-origin: right center;
+    transform: perspective(1800px) rotateY(0deg);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  }
+  38% {
+    transform-origin: right center;
+    transform: perspective(1800px) rotateY(14deg) scale(0.992) skewY(0.4deg);
+    box-shadow: 10px 8px 22px rgba(0, 0, 0, 0.2);
+  }
+  70% {
+    transform-origin: right center;
+    transform: perspective(1800px) rotateY(4deg) scale(0.998) skewY(0.1deg);
+    box-shadow: 4px 4px 12px rgba(0, 0, 0, 0.14);
+  }
+  100% {
+    transform-origin: right center;
+    transform: perspective(1800px) rotateY(0deg) scale(1) skewY(0deg);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  }
+}
+
+.page-flip-anim-next .pdf-page-view:last-child {
+  animation: realisticPageCurlNext 0.75s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.page-flip-anim-prev .pdf-page-view:first-child {
+  animation: realisticPageCurlPrev 0.75s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* Disabled Page Flip Animation - Strict Override */
+body.no-page-animation .pdf-page-view,
+.no-page-animation .pdf-page-view {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+}
+
+.pdf-canvas {
+  display: block;
+  margin: 0 auto;
+  pointer-events: none;
+}
+
+/* Precise Text Layer - Fully Selectable with mouse & double click! */
+.textLayer {
+  position: absolute;
+  text-align: initial;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  opacity: 1.0;
+  line-height: 1.0;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  z-index: 25;
+  pointer-events: auto !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
+.textLayer span,
+.textLayer br {
+  color: transparent !important;
+  position: absolute;
+  white-space: pre;
+  cursor: text !important;
+  transform-origin: 0% 0%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  line-height: 1.0;
+  pointer-events: auto !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
+.textLayer ::selection {
+  background: rgba(59, 130, 246, 0.4) !important;
+  color: transparent !important;
+}
+
+.textLayer .endOfContent {
+  display: block;
+  position: absolute;
+  left: 0;
+  top: 100%;
+  right: 0;
+  bottom: 0;
+  z-index: -1;
+  cursor: default;
+  user-select: none;
+}
+
+/* Highlight Overlays - Positioned BETWEEN canvas (z-index:1) and textLayer (z-index:25) */
+.highlights-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.highlight-rect {
+  position: absolute;
+  mix-blend-mode: multiply !important;
+  opacity: 0.48;
+  border-radius: 2px;
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 10;
+}
+
+/* Area Highlighter Mode */
+.pdf-page-view.highlight-mode-active {
+  cursor: crosshair !important;
+}
+
+.pdf-page-view.highlight-mode-active .textLayer {
+  pointer-events: none;
+}
+
+.drawing-highlight-box {
+  position: absolute;
+  mix-blend-mode: multiply;
+  border: 1px dashed rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+  z-index: 10;
+  border-radius: 2px;
+}
+
+/* Screen Extreme Edge Hotzones */
+.edge-hotzone {
+  position: absolute;
+  top: 0;
+  bottom: 70px;
+  width: 14%;
+  z-index: 10;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease, background-color 0.2s ease;
+}
+
+.edge-hotzone-left {
+  left: 0;
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.08), transparent);
+}
+
+.edge-hotzone-right {
+  right: 0;
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.08), transparent);
+}
+
+.edge-hotzone:hover {
+  opacity: 1;
+}
+
+.edge-indicator {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  background-color: var(--bg-sidebar);
+  color: var(--text-main);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-color);
+}
+
+/* Realistic 3D Book Page Curl Animation */
+@keyframes realisticPageCurlNext {
+  0% {
+    transform-origin: left center;
+    transform: perspective(1600px) rotateY(0deg);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+  40% {
+    transform-origin: left center;
+    transform: perspective(1600px) rotateY(-38deg) scale(0.97) skewY(-1deg);
+    box-shadow: -20px 15px 35px rgba(0, 0, 0, 0.4);
+  }
+  100% {
+    transform-origin: left center;
+    transform: perspective(1600px) rotateY(0deg) scale(1) skewY(0deg);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+}
+
+@keyframes realisticPageCurlPrev {
+  0% {
+    transform-origin: right center;
+    transform: perspective(1600px) rotateY(0deg);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+  40% {
+    transform-origin: right center;
+    transform: perspective(1600px) rotateY(38deg) scale(0.97) skewY(1deg);
+    box-shadow: 20px 15px 35px rgba(0, 0, 0, 0.4);
+  }
+  100% {
+    transform-origin: right center;
+    transform: perspective(1600px) rotateY(0deg) scale(1) skewY(0deg);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+}
+
+.page-flip-anim-next .pdf-page-view:last-child {
+  animation: realisticPageCurlNext 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.page-flip-anim-prev .pdf-page-view:first-child {
+  animation: realisticPageCurlPrev 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Page-Bounded Outer Edge Click Hotzones (Sem aura azul e sem interferir na seleção) */
+.page-edge-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 10%;
+  z-index: 15; /* Below textLayer (z-index:25) to prevent text selection interference */
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: auto;
+  background: transparent;
+  border: none;
+}
+
+.page-edge-zone-left {
+  left: 0;
+}
+
+.page-edge-zone-right {
+  right: 0;
+}
+
+.page-edge-zone:hover {
+  opacity: 0.85;
+}
+
+.page-edge-peel-indicator {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  background-color: var(--bg-sidebar);
+  color: var(--primary);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-color);
+}
+
+/* BOTTOM TOOLBAR - Fixed at Bottom Center of Screen */
+.reader-bottom-bar {
+  position: fixed !important;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 600;
+  background-color: #0f172a !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-full);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  color: #f8fafc;
+  opacity: 1 !important;
+}
+
+[data-theme="light"] .reader-bottom-bar {
+  background-color: #ffffff !important;
+  border-color: rgba(0, 0, 0, 0.18);
+  color: #0f172a;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+
+.bottom-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.toolbar-btn-glass {
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: inherit;
+  transition: all var(--transition-fast);
+}
+
+.toolbar-btn-glass:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+[data-theme="light"] .toolbar-btn-glass:hover {
+  background-color: var(--bg-surface);
+}
+
+.toolbar-btn-glass.active {
+  background-color: var(--primary);
+  color: #ffffff;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 20px;
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="light"] .toolbar-divider {
+  background-color: var(--border-color);
+}
+
+/* Sleek & Discrete Page Jumper Input in Bottom Bar */
+.bottom-page-jumper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: inherit;
+}
+
+[data-theme="light"] .bottom-page-jumper {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+.bottom-page-jumper input {
+  width: 32px;
+  text-align: right;
+  border: none;
+  background: none;
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: inherit;
+  outline: none;
+  padding: 0;
+  margin: 0;
+  -moz-appearance: textfield;
+}
+
+.bottom-page-jumper input::-webkit-outer-spin-button,
+.bottom-page-jumper input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.page-total-slash {
+  opacity: 0.5;
+  font-size: 0.78rem;
+}
+
+.page-total-num {
+  opacity: 0.75;
+  font-size: 0.78rem;
+}
+
+/* Pastel Selection Popup - Fixed positioning for exact viewport coordinates */
+.selection-popup {
+  position: fixed !important;
+  z-index: 9999 !important;
+  background-color: var(--bg-sidebar);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  transform: translate(-50%, -100%) translateY(-10px);
+  animation: popupFadeIn 0.15s ease forwards;
+  pointer-events: auto;
+}
+
+@keyframes popupFadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -100%) translateY(0px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -100%) translateY(-10px) scale(1);
+  }
+}
+
+.color-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: transform var(--transition-fast);
+}
+
+.color-swatch:hover {
+  transform: scale(1.2);
+}
+
+.swatch-pink { background-color: var(--pastel-pink); }
+.swatch-yellow { background-color: var(--pastel-yellow); }
+.swatch-green { background-color: var(--pastel-green); }
+.swatch-blue { background-color: var(--pastel-blue); }
+.swatch-purple { background-color: var(--pastel-purple); }
+
+.popup-divider {
+  width: 1px;
+  height: 18px;
+  background-color: var(--border-color);
+}
+
+.popup-btn {
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+}
+
+.popup-btn:hover {
+  background-color: var(--bg-surface);
+  color: var(--text-main);
+}
+
+/* In-Book Search & Bookmarks Panel */
+.search-input-box {
+  display: flex;
+  align-items: center;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  gap: 8px;
+}
+
+.search-input-box input {
+  border: none;
+  background: none;
+  width: 100%;
+  font-size: 0.88rem;
+  outline: none;
+}
+
+.search-result-item {
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-card);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.search-result-item:hover {
+  border-color: var(--primary);
+  background-color: var(--primary-light);
+}
+
+.search-result-page {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.search-result-snippet {
+  font-size: 0.82rem;
+  color: var(--text-main);
+  line-height: 1.3;
+}
+
+.search-result-snippet mark {
+  background-color: var(--pastel-yellow);
+  color: #000;
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+.bookmark-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-card);
+  cursor: pointer;
+}
+
+.bookmark-item:hover {
+  border-color: var(--primary);
+}
+
+.bookmark-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bookmark-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.bookmark-page {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}

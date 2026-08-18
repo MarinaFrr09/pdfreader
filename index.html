@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leitor de Livros PDF - Biblioteca & Marcadores</title>
+
+  <!-- External Stylesheets -->
+  <link rel="stylesheet" href="lib/pdf_viewer.min.css">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/library.css">
+  <link rel="stylesheet" href="css/reader.css">
+
+  <!-- PDF.js Library -->
+  <script src="lib/pdf.min.js"></script>
+</head>
+<body>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- MAIN APP CONTAINER (Library View) -->
+  <div id="library-view" class="app-container">
+    
+    <!-- LEFT SIDEBAR - Folders & Categories -->
+    <aside class="library-sidebar">
+      <div class="brand-header">
+        <div class="brand-logo">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+        </div>
+        <div class="brand-title">PDF Reader</div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="section-title">Minha Biblioteca</div>
+        <div id="folders-list" class="flex-col gap-1">
+          <!-- Folder items injected by library.js -->
+        </div>
+        <button id="btn-new-folder" class="btn-new-folder">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          <span>Nova Pasta</span>
+        </button>
+      </div>
+
+      <div class="sidebar-bottom">
+        <button id="btn-toggle-theme" class="theme-toggle-btn">
+          <div class="flex items-center gap-2">
+            <span id="theme-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+            </span>
+            <span id="theme-label">Modo Escuro</span>
+          </div>
+        </button>
+      </div>
+    </aside>
+
+    <!-- MAIN LIBRARY CONTENT -->
+    <main class="library-main">
+      <header class="library-header">
+        <div class="header-title-group">
+          <h1 id="current-folder-title">Todos os Livros</h1>
+          <p>Gerencie seus e-books e documentos PDF organizados por pastas</p>
+        </div>
+
+        <div class="header-actions">
+          <div class="search-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" id="library-search-input" placeholder="Pesquisar livro...">
+          </div>
+
+          <button id="btn-import-pdf" class="btn-primary">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            <span>Adicionar Livro</span>
+          </button>
+          <input type="file" id="pdf-file-input" accept="application/pdf" multiple style="display: none;">
+        </div>
+      </header>
+
+      <section class="library-content">
+        <!-- Book Cards Grid -->
+        <div id="books-grid" class="books-grid">
+          <!-- Book cards injected by library.js -->
+        </div>
+
+        <!-- Empty State & Drag Zone -->
+        <div id="empty-state" class="dropzone-container hidden">
+          <div class="dropzone-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+          </div>
+          <h2>Nenhum livro nesta pasta</h2>
+          <p style="color: var(--text-muted); max-width: 400px;">
+            Arraste e solte seus arquivos PDF aqui ou clique em "Adicionar Livro" para importar.
+          </p>
+          <button onclick="document.getElementById('pdf-file-input').click()" class="btn-primary" style="margin-top: 8px;">
+            Selecionar Arquivos PDF
+          </button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- NEW FOLDER MODAL -->
+  <div id="modal-folder" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Criar Nova Pasta</h3>
+        <button onclick="document.getElementById('modal-folder').classList.add('hidden')" style="font-size: 1.2rem;">✕</button>
+      </div>
+      <form id="form-folder">
+        <div class="form-group">
+          <label for="folder-name-input">Nome da Pasta</label>
+          <input type="text" id="folder-name-input" placeholder="Ex: Programação, Estudos, Faculdade..." required>
+        </div>
+        <div class="modal-actions" style="margin-top: 16px;">
+          <button type="button" onclick="document.getElementById('modal-folder').classList.add('hidden')" class="btn-secondary">Cancelar</button>
+          <button type="submit" class="btn-primary">Criar Pasta</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- HORIZONTAL PDF READER VIEW -->
+  <div id="reader-view" class="reader-container hidden">
+    
+    <!-- READER BODY -->
+    <div class="reader-body">
+      
+      <!-- READER SIDEBAR COLUMN (Thumbnails, Search & Bookmarks) -->
+      <aside id="reader-sidebar" class="reader-sidebar collapsed">
+        <div class="sidebar-tabs">
+          <button class="tab-btn active" data-tab="thumbnails">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+            Páginas
+          </button>
+          <button class="tab-btn" data-tab="search">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            Pesquisa
+          </button>
+          <button class="tab-btn" data-tab="bookmarks">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+            Marcadores
+          </button>
+          <button class="tab-btn" data-tab="highlights" title="Ver partes grifadas do texto">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+            Grifos
+          </button>
+        </div>
+
+        <!-- Panel 1: Thumbnails Grid -->
+        <div id="panel-thumbnails" class="sidebar-panel">
+          <div id="thumbnails-grid" class="thumbnails-grid">
+            <!-- Page thumbnails rendered dynamically -->
+          </div>
+        </div>
+
+        <!-- Panel 2: In-Book Search -->
+        <div id="panel-search" class="sidebar-panel hidden">
+          <div class="search-input-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" id="reader-search-input" placeholder="Pesquisar palavra no livro...">
+          </div>
+          <div id="search-results-list" class="flex-col gap-2" style="margin-top: 12px;">
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Digite um termo para pesquisar.</p>
+          </div>
+        </div>
+
+        <!-- Panel 3: Bookmarks -->
+        <div id="panel-bookmarks" class="sidebar-panel hidden">
+          <button id="btn-add-bookmark" class="btn-primary" style="width: 100%; justify-content: center;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+            <span>Marcar Página Atual</span>
+          </button>
+          <div id="bookmarks-list" class="flex-col gap-2" style="margin-top: 12px;">
+            <!-- Bookmarks list rendered dynamically -->
+          </div>
+        </div>
+
+        <!-- Panel 4: Highlights / Partes Grifadas -->
+        <div id="panel-highlights" class="sidebar-panel hidden">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h4 style="font-size: 0.85rem; font-weight: 700; margin: 0;">Partes Grifadas</h4>
+            <div style="display: flex; gap: 4px; align-items: center;">
+              <button id="btn-copy-all-highlights" class="toolbar-btn-glass" style="padding: 4px 6px; font-size: 0.75rem;" title="Copiar Todos os Grifos">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              </button>
+              <button id="btn-delete-all-highlights" class="toolbar-btn-glass" style="padding: 4px 6px; font-size: 0.75rem; color: var(--danger);" title="Excluir Todos os Grifos do Livro">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+              </button>
+              <button id="btn-refresh-highlights" class="toolbar-btn-glass" style="padding: 4px 6px; font-size: 0.75rem;" title="Atualizar Lista">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+              </button>
+            </div>
+          </div>
+          <div id="highlights-list" class="flex-col gap-2">
+            <!-- Highlighted items rendered dynamically -->
+          </div>
+        </div>
+      </aside>
+
+      <!-- HORIZONTAL VIEWPORT CONTAINER -->
+      <div id="reader-viewport" class="reader-viewport">
+        
+        <!-- PDF Page Canvas Container (Single or Dual Page Spread) -->
+        <div id="pdf-page-container" class="page-container-wrapper spread-mode">
+          <!-- Canvas + Text Layer injected here dynamically -->
+        </div>
+
+        <!-- BOTTOM FLOATING GLASSMOPHIC TOOLBAR -->
+        <div class="reader-bottom-bar">
+          <button id="btn-close-reader" class="toolbar-btn-glass" title="Voltar à Biblioteca">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            <span id="reader-book-title" style="max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Livro PDF</span>
+          </button>
+
+          <div class="toolbar-divider"></div>
+
+          <button id="btn-toggle-reader-sidebar" class="toolbar-btn-glass" title="Alternar Painel Lateral (Atalho no teclado: Tecla L)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>
+            <span style="font-size: 0.8rem; font-weight: 600;">Painel <small style="font-size: 0.65rem; opacity: 0.7; font-weight: 500;">(L)</small></span>
+          </button>
+
+          <div class="toolbar-divider"></div>
+
+          <!-- Layout Switcher (2 Páginas lado a lado vs 1 Página) -->
+          <button id="btn-toggle-spread-mode" class="toolbar-btn-glass active" title="Alternar Modo 2 Páginas / 1 Página (Atalho no teclado: Tecla P)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="9" height="18" rx="1.5"></rect><rect x="13" y="3" width="9" height="18" rx="1.5"></rect></svg>
+            <span id="spread-mode-label">2 Págs <small style="font-size: 0.65rem; opacity: 0.7; font-weight: 500;">(P)</small></span>
+          </button>
+
+          <!-- Marcar Página Button -->
+          <button id="btn-bookmark-current" class="toolbar-btn-glass" title="Marcar / Desmarcar Página Atual (Atalho no teclado: Tecla M)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+            <span id="bookmark-btn-label" style="font-size: 0.8rem; font-weight: 600;">Marcar <small style="font-size: 0.65rem; opacity: 0.7; font-weight: 500;">(M)</small></span>
+          </button>
+
+          <div class="toolbar-divider"></div>
+
+          <!-- Bottom Navigation Arrows & Page Jumper -->
+          <div class="bottom-toolbar-group">
+            <button id="btn-prev-page" class="toolbar-btn-glass" title="Página Anterior">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            </button>
+
+            <div class="bottom-page-jumper" title="Clique no número para digitar a página">
+              <input type="number" id="reader-page-input" min="1" value="1">
+              <span class="page-total-slash">/</span>
+              <span id="reader-total-pages" class="page-total-num">1</span>
+            </div>
+
+            <button id="btn-next-page" class="toolbar-btn-glass" title="Próxima Página">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </button>
+          </div>
+
+          <div class="toolbar-divider"></div>
+
+          <!-- Zoom Controls -->
+          <div class="bottom-toolbar-group">
+            <button id="btn-zoom-out" class="toolbar-btn-glass" title="Reduzir Zoom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+            </button>
+            <span id="zoom-level-label" style="font-size: 0.8rem; font-weight: 600; min-width: 42px; text-align: center;">100%</span>
+            <button id="btn-zoom-in" class="toolbar-btn-glass" title="Aumentar Zoom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+            </button>
+          </div>
+
+          <div class="toolbar-divider"></div>
+
+          <!-- Freeform Highlighter Button & Swatches -->
+          <button id="btn-toggle-highlighter-mode" class="toolbar-btn-glass" title="Ativar Modo Marca-Texto (Atalho no teclado: Tecla X)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+            <span id="highlighter-btn-label" style="font-size: 0.8rem; font-weight: 600;">Grifar <small style="font-size: 0.65rem; opacity: 0.7; font-weight: 500;">(X)</small></span>
+          </button>
+
+          <!-- Ver Grifos Button Right Next to Grifar -->
+          <button id="btn-view-highlights-bottom" class="toolbar-btn-glass" title="Ver Lista de Partes Grifadas do Texto (Atalho: Tecla G)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+            <span style="font-size: 0.8rem; font-weight: 600;">Ver Grifos <small style="font-size: 0.65rem; opacity: 0.7; font-weight: 500;">(G)</small></span>
+          </button>
+
+          <div id="highlighter-color-bar" class="highlighter-toolbar-group hidden">
+            <div class="toolbar-swatch swatch-pink" data-color="pink" title="Rosa Pastel"></div>
+            <div class="toolbar-swatch swatch-yellow active" data-color="yellow" title="Amarelo Pastel"></div>
+            <div class="toolbar-swatch swatch-green" data-color="green" title="Verde Pastel"></div>
+            <div class="toolbar-swatch swatch-blue" data-color="blue" title="Azul Pastel"></div>
+            <div class="toolbar-swatch swatch-purple" data-color="purple" title="Roxo Pastel"></div>
+          </div>
+
+          <div class="toolbar-divider"></div>
+
+          <!-- Reader Theme Switcher Button (Tema Claro / Escuro) -->
+          <button id="btn-reader-theme" class="toolbar-btn-glass" title="Alternar Modo Claro / Escuro (Atalho: Teclas T ou E)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+            <span style="font-size: 0.8rem; font-weight: 600;">Tema <small style="font-size: 0.65rem; opacity: 0.7; font-weight: 500;">(T)</small></span>
+          </button>
+
+          <!-- Reader Settings Gear Icon -->
+          <button id="btn-reader-settings" class="toolbar-btn-glass" title="Configurações do Leitor (Opacidade, Cores & Animações)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- SETTINGS MODAL DIALOG -->
+  <div id="modal-settings" class="modal-overlay hidden">
+    <div class="modal-card" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Configurações do Leitor</h3>
+        <button id="btn-close-settings-modal" class="modal-close-btn">&times;</button>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 18px; padding: 10px 0;">
+        
+        <!-- Opacity Slider (15% to 100%) -->
+        <div>
+          <label style="font-weight: 600; font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span>Opacidade do Marca-Texto</span>
+            <span id="opacity-slider-value" style="color: var(--primary); font-weight: 700;">48%</span>
+          </label>
+          <input type="range" id="highlighter-opacity-range" min="15" max="100" step="5" value="48" style="width: 100%; accent-color: var(--primary); cursor: pointer;">
+          <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 6px;">Ajuste a transparência dos grifos pastéis sobre o texto do livro (até 100% de intensidade sólida).</p>
+        </div>
+
+        <!-- Color Swatch Default Selector -->
+        <div style="padding-top: 10px; border-top: 1px solid var(--border-color);">
+          <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 8px;">
+            <span>Escolher Cor Padrão do Marca-Texto</span>
+          </label>
+          <div id="settings-color-swatches" style="display: flex; gap: 10px; align-items: center;">
+            <div class="toolbar-swatch swatch-pink" data-color="pink" title="Rosa Pastel" style="width: 32px; height: 32px;"></div>
+            <div class="toolbar-swatch swatch-yellow active" data-color="yellow" title="Amarelo Pastel" style="width: 32px; height: 32px;"></div>
+            <div class="toolbar-swatch swatch-green" data-color="green" title="Verde Pastel" style="width: 32px; height: 32px;"></div>
+            <div class="toolbar-swatch swatch-blue" data-color="blue" title="Azul Pastel" style="width: 32px; height: 32px;"></div>
+            <div class="toolbar-swatch swatch-purple" data-color="purple" title="Roxo Pastel" style="width: 32px; height: 32px;"></div>
+          </div>
+          <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 6px;">Escolha a cor principal aplicada para a marcação de texto.</p>
+        </div>
+
+        <!-- Page Flip Animation Toggle Row -->
+        <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid var(--border-color);">
+          <div>
+            <span style="font-weight: 600; font-size: 0.9rem; display: block;">Animação de Páginas</span>
+            <span style="font-size: 0.78rem; color: var(--text-muted);">Ativar ou desativar a transição 3D ao virar páginas</span>
+          </div>
+          <button id="btn-toggle-animation-modal" class="btn-secondary" style="display: flex; align-items: center; gap: 6px;">
+            <span id="animation-toggle-label">Com Animação</span>
+          </button>
+        </div>
+
+        <!-- Theme Toggle Row -->
+        <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid var(--border-color);">
+          <div>
+            <span style="font-weight: 600; font-size: 0.9rem; display: block;">Tema do Leitor</span>
+            <span style="font-size: 0.78rem; color: var(--text-muted);">Alternar entre Fundo Claro e Escuro</span>
+          </div>
+          <button id="btn-toggle-theme-modal" class="btn-secondary" style="display: flex; align-items: center; gap: 6px;">
+            <span>Alternar Tema</span>
+          </button>
+        </div>
+
+      </div>
+
+      <div class="modal-footer" style="margin-top: 16px;">
+        <button id="btn-save-settings" class="btn-primary" style="width: 100%;">Salvar Configurações</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript Application Modules -->
+  <script src="js/db.js"></script>
+  <script src="js/text-select.js"></script>
+  <script src="js/search.js"></script>
+  <script src="js/sidebar.js"></script>
+  <script src="js/library.js"></script>
+  <script src="js/reader.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>

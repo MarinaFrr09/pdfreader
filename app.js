@@ -1,0 +1,165 @@
+/* ==========================================================================
+   MAIN APPLICATION CONTROLLER
+   ========================================================================== */
+
+class App {
+  constructor() {
+    this.theme = localStorage.getItem('pdf_reader_theme') || 'light';
+  }
+
+  async init() {
+    this.applyTheme(this.theme);
+    this.setupThemeToggle();
+    this.setupGlobalShortcuts();
+
+    // Configure PDF.js Worker path
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdf.worker.min.js';
+    }
+
+    // Initialize modules
+    await window.libraryManager.init();
+    window.readerManager.init();
+    window.textSelectionManager.init();
+
+    console.log('PDF Book Reader application initialized successfully.');
+  }
+
+  setupGlobalShortcuts() {
+    window.addEventListener('keydown', (e) => {
+      if (e.target.closest('input, textarea, [contenteditable="true"]')) return;
+
+      const keyUpper = e.key.toUpperCase();
+
+      // Global Theme Toggle: 'T' or 'E'
+      if (keyUpper === 'T' || keyUpper === 'E') {
+        e.preventDefault();
+        this.toggleTheme();
+      }
+
+      // Ver / Alternar Grifos in Reader: 'G'
+      if (keyUpper === 'G') {
+        const readerView = document.getElementById('reader-view');
+        if (readerView && !readerView.classList.contains('hidden')) {
+          e.preventDefault();
+          if (window.readerSidebarManager) {
+            window.readerSidebarManager.toggleHighlightsPanel();
+          }
+        }
+      }
+
+      // Toggle 2 Pages / 1 Page Layout: 'P'
+      if (keyUpper === 'P') {
+        const readerView = document.getElementById('reader-view');
+        if (readerView && !readerView.classList.contains('hidden')) {
+          e.preventDefault();
+          if (window.readerManager) {
+            window.readerManager.toggleSpreadMode();
+          }
+        }
+      }
+
+      // Marcar / Desmarcar Página: 'M'
+      if (keyUpper === 'M') {
+        const readerView = document.getElementById('reader-view');
+        if (readerView && !readerView.classList.contains('hidden')) {
+          e.preventDefault();
+          if (window.readerSidebarManager) {
+            window.readerSidebarManager.toggleCurrentPageBookmark();
+          }
+        }
+      }
+
+      // Intercept Ctrl + Plus / Equal / NumpadAdd -> In-App Zoom In
+      if (e.ctrlKey && (e.key === '+' || e.key === '=' || e.code === 'NumpadAdd' || e.code === 'Equal')) {
+        const readerView = document.getElementById('reader-view');
+        if (readerView && !readerView.classList.contains('hidden')) {
+          e.preventDefault();
+          if (window.readerManager) {
+            window.readerManager.zoomIn();
+          }
+        }
+      }
+
+      // Intercept Ctrl + Minus / NumpadSubtract -> In-App Zoom Out
+      if (e.ctrlKey && (e.key === '-' || e.code === 'NumpadSubtract' || e.code === 'Minus')) {
+        const readerView = document.getElementById('reader-view');
+        if (readerView && !readerView.classList.contains('hidden')) {
+          e.preventDefault();
+          if (window.readerManager) {
+            window.readerManager.zoomOut();
+          }
+        }
+      }
+
+      // Intercept Ctrl + 0 -> Reset Zoom to 100%
+      if (e.ctrlKey && (e.key === '0' || e.code === 'Numpad0' || e.code === 'Digit0')) {
+        const readerView = document.getElementById('reader-view');
+        if (readerView && !readerView.classList.contains('hidden')) {
+          e.preventDefault();
+          if (window.readerManager) {
+            window.readerManager.resetZoom();
+          }
+        }
+      }
+    });
+  }
+
+  setupThemeToggle() {
+    const btnToggle = document.getElementById('btn-toggle-theme');
+    if (btnToggle) {
+      btnToggle.addEventListener('click', () => this.toggleTheme());
+    }
+  }
+
+  toggleTheme() {
+    this.theme = this.theme === 'light' ? 'dark' : 'light';
+    localStorage.setItem('pdf_reader_theme', this.theme);
+    this.applyTheme(this.theme);
+    this.showToast(`Modo ${this.theme === 'dark' ? 'Escuro' : 'Claro'} ativado.`);
+  }
+
+  applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    const label = document.getElementById('theme-label');
+    if (label) {
+      label.textContent = theme === 'dark' ? 'Modo Claro' : 'Modo Escuro';
+    }
+    const icon = document.getElementById('theme-icon');
+    if (icon) {
+      icon.innerHTML = theme === 'dark' 
+        ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>`
+        : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>`;
+    }
+
+    const allGroups = document.querySelectorAll('.highlight-group');
+    allGroups.forEach(g => {
+      g.style.mixBlendMode = theme === 'dark' ? 'screen' : 'multiply';
+    });
+  }
+
+  showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    
+    toast.innerHTML = `<span>${message}</span>`;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(10px)';
+      toast.style.transition = 'all 0.3s ease';
+      setTimeout(() => toast.remove(), 300);
+    }, 3200);
+  }
+}
+
+window.app = new App();
+
+document.addEventListener('DOMContentLoaded', () => {
+  window.app.init();
+});
