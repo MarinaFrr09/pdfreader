@@ -22,11 +22,11 @@ class LibraryManager {
   async ensureDefaultFolders() {
     const existing = await window.dbManager.getAllFolders();
     const defaults = [
-      { id: 'all', name: 'Todos os Livros', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>', isSystem: true },
-      { id: 'favorites', name: 'Favoritos', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>', isSystem: true },
-      { id: 'study', name: 'Estudos & Faculdade', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"></path><path d="M6 12v5c3 3 9 3 12 0v-5"></path></svg>', isSystem: false },
-      { id: 'fiction', name: 'Ficção & Lazer', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>', isSystem: false },
-      { id: 'trash', name: 'Lixeira', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>', isSystem: true }
+      { id: 'all', name: 'Todos os Livros', isSystem: true },
+      { id: 'favorites', name: 'Favoritos', isSystem: true },
+      { id: 'study', name: 'Estudos & Faculdade', isSystem: false },
+      { id: 'fiction', name: 'Ficção & Lazer', isSystem: false },
+      { id: 'trash', name: 'Lixeira', isSystem: true }
     ];
 
     for (const def of defaults) {
@@ -115,10 +115,7 @@ class LibraryManager {
 
     const newFolder = {
       id: 'folder_' + Date.now(),
-      name: name,
-      icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>',
-      isSystem: false,
-      createdAt: Date.now()
+      name: name
     };
 
     await window.dbManager.saveFolder(newFolder);
@@ -132,7 +129,7 @@ class LibraryManager {
   async handleFileSelect(files) {
     if (!files || files.length === 0) return;
 
-    window.app.showToast('Processando e gerando capa do livro...', 'info');
+    window.app.showToast('Processando e enviando PDF para a nuvem...', 'info');
 
     for (const file of files) {
       if (file.type !== 'application/pdf' && !file.name.endsWith('.pdf')) {
@@ -146,17 +143,16 @@ class LibraryManager {
         const newBook = {
           id: 'book_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
           title: file.name.replace(/\.pdf$/i, ''),
-          fileBlob: file, // File is already a Blob! No need to duplicate in memory
-          coverDataUrl: coverDataUrl,
+          file: file,
+          coverUrl: coverDataUrl,
           folderId: this.currentFolderId === 'trash' || this.currentFolderId === 'favorites' ? 'all' : this.currentFolderId,
-          pageCount: pageCount || 1,
+          totalPages: pageCount || 1,
           lastPage: 1,
-          isFavorite: false,
-          createdAt: Date.now()
+          createdAt: new Date().toISOString()
         };
 
         await window.dbManager.saveBook(newBook);
-        window.app.showToast(`Livro "${newBook.title}" adicionado à biblioteca!`);
+        window.app.showToast(`Livro "${newBook.title}" salvo com sucesso!`);
       } catch (err) {
         console.error('Error processing PDF file:', err);
         window.app.showToast(`Erro ao carregar o PDF: ${file.name}`, 'error');
@@ -224,10 +220,18 @@ class LibraryManager {
 
     container.innerHTML = '';
 
+    const folderIcons = {
+      all: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>',
+      favorites: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>',
+      study: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"></path><path d="M6 12v5c3 3 9 3 12 0v-5"></path></svg>',
+      fiction: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>',
+      trash: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>'
+    };
+
     this.folders.forEach(folder => {
       const bookCount = this.books.filter(b => {
         if (folder.id === 'trash') return b.folderId === 'trash';
-        if (b.folderId === 'trash') return false; // Hide trash items from normal folders
+        if (b.folderId === 'trash') return false;
         if (folder.id === 'all') return true;
         if (folder.id === 'favorites') return b.isFavorite;
         return b.folderId === folder.id;
@@ -237,7 +241,7 @@ class LibraryManager {
       item.className = `folder-item ${this.currentFolderId === folder.id ? 'active' : ''}`;
       item.innerHTML = `
         <div class="folder-left">
-          <span class="folder-icon">${folder.icon || '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>'}</span>
+          <span class="folder-icon">${folderIcons[folder.id] || '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>'}</span>
           <span class="folder-name">${folder.name}</span>
         </div>
         <span class="folder-count">${bookCount}</span>
@@ -259,19 +263,15 @@ class LibraryManager {
 
     if (!grid) return;
 
-    // Update Header
     const activeFolder = this.folders.find(f => f.id === this.currentFolderId);
     if (headerTitle) {
       headerTitle.textContent = activeFolder ? activeFolder.name : 'Biblioteca';
     }
 
-    // Filter Books
     let filtered = this.books.filter(book => {
       if (this.currentFolderId === 'trash') {
         return book.folderId === 'trash';
       }
-
-      // Hide trash books from normal views
       if (book.folderId === 'trash') return false;
 
       if (this.currentFolderId === 'favorites') {
@@ -281,25 +281,27 @@ class LibraryManager {
       }
 
       if (this.searchQuery) {
-        return book.title.toLowerCase().includes(this.searchQuery);
+        return (book.title || '').toLowerCase().includes(this.searchQuery);
       }
       return true;
     });
 
     if (filtered.length === 0) {
       grid.innerHTML = '';
-      emptyState.classList.remove('hidden');
+      if (emptyState) emptyState.classList.remove('hidden');
       return;
     }
 
-    emptyState.classList.add('hidden');
+    if (emptyState) emptyState.classList.add('hidden');
     grid.innerHTML = '';
 
     filtered.forEach(book => {
       const card = document.createElement('div');
       card.className = 'book-card';
-      
-      const progressPercent = Math.round((book.lastPage / (book.pageCount || 1)) * 100);
+
+      const totalPages = book.totalPages || book.pageCount || 1;
+      const lastPage = book.lastPage || 1;
+      const progressPercent = Math.round((lastPage / totalPages) * 100);
       const isTrashView = this.currentFolderId === 'trash';
 
       const starIcon = book.isFavorite 
@@ -308,6 +310,8 @@ class LibraryManager {
 
       const trashIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
       const restoreIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>`;
+
+      const coverSrc = book.coverUrl || book.coverDataUrl;
 
       card.innerHTML = `
         <div class="book-card-actions">
@@ -320,8 +324,8 @@ class LibraryManager {
           `}
         </div>
         <div class="book-cover-wrapper">
-          ${book.coverDataUrl 
-            ? `<img src="${book.coverDataUrl}" class="book-cover-img" alt="${book.title}">` 
+          ${coverSrc 
+            ? `<img src="${coverSrc}" class="book-cover-img" alt="${book.title}">` 
             : `<div class="book-cover-placeholder">
                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
                  <span>${book.title}</span>
@@ -330,7 +334,7 @@ class LibraryManager {
         <div class="book-card-body">
           <div class="book-title">${book.title}</div>
           <div class="book-meta">
-            <span>Pág ${book.lastPage} de ${book.pageCount}</span>
+            <span>Pág ${lastPage} de ${totalPages}</span>
             <span>${progressPercent}%</span>
           </div>
           <div class="book-progress-bar">
@@ -339,7 +343,6 @@ class LibraryManager {
         </div>
       `;
 
-      // Action Handlers
       if (!isTrashView) {
         const btnFav = card.querySelector('.btn-toggle-fav');
         if (btnFav) {
@@ -389,7 +392,7 @@ class LibraryManager {
         }
       }
 
-      // Click card to open PDF Reader!
+      // Clique no card para abrir o leitor
       card.addEventListener('click', async () => {
         try {
           const freshBook = (await window.dbManager.getBook(book.id)) || book;
