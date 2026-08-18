@@ -73,7 +73,7 @@ class DatabaseManager {
   async saveBook(book) {
     let publicFileUrl = book.fileUrl || book.fileurl;
 
-    // Se houver um arquivo físico novo, envia para o bucket 'pdf-files'
+    // Upload para o bucket 'pdf-files'
     const rawFile = book.file || book.fileBlob;
     if (rawFile && (rawFile instanceof File || rawFile instanceof Blob)) {
       const fileName = `${book.id}_${Date.now()}.pdf`;
@@ -91,7 +91,6 @@ class DatabaseManager {
         throw uploadError;
       }
 
-      // Obtém a URL pública direta do bucket 'pdf-files'
       const { data: urlData } = this.client.storage.from('pdf-files').getPublicUrl(fileName);
       publicFileUrl = urlData.publicUrl;
     }
@@ -121,35 +120,64 @@ class DatabaseManager {
     if (error) console.error('Erro ao excluir livro:', error);
   }
 
-  // --- GRIFOS & MARCADORES ---
+  // --- GRIFOS (HIGHLIGHTS) ---
   async getHighlights(bookId, pageNum) {
-    const { data, error } = await this.client
-      .from('highlights')
-      .select('*')
-      .eq('bookId', bookId)
-      .eq('pageNum', pageNum);
+    let query = this.client.from('highlights').select('*').eq('bookId', bookId);
+    if (pageNum !== undefined && pageNum !== null) {
+      query = query.eq('pageNum', pageNum);
+    }
+    const { data, error } = await query;
     return error ? [] : (data || []);
   }
 
+  async getHighlightsForBook(bookId) {
+    return this.getHighlights(bookId);
+  }
+
   async saveHighlight(highlight) {
-    await this.client.from('highlights').upsert(highlight);
+    const payload = {
+      id: highlight.id,
+      bookId: highlight.bookId,
+      pageNum: highlight.pageNum,
+      text: highlight.text || '',
+      rects: highlight.rects || [],
+      color: highlight.color || 'yellow',
+      createdAt: highlight.createdAt || new Date().toISOString()
+    };
+    const { error } = await this.client.from('highlights').upsert(payload);
+    if (error) console.error('Erro ao salvar grifo:', error);
   }
 
   async deleteHighlight(id) {
-    await this.client.from('highlights').delete().eq('id', id);
+    const { error } = await this.client.from('highlights').delete().eq('id', id);
+    if (error) console.error('Erro ao excluir grifo:', error);
   }
 
+  // --- MARCADORES (BOOKMARKS) ---
   async getBookmarks(bookId) {
     const { data, error } = await this.client.from('bookmarks').select('*').eq('bookId', bookId);
     return error ? [] : (data || []);
   }
 
+  async getBookmarksForBook(bookId) {
+    return this.getBookmarks(bookId);
+  }
+
   async saveBookmark(bookmark) {
-    await this.client.from('bookmarks').upsert(bookmark);
+    const payload = {
+      id: bookmark.id,
+      bookId: bookmark.bookId,
+      pageNum: bookmark.pageNum,
+      title: bookmark.title || '',
+      createdAt: bookmark.createdAt || new Date().toISOString()
+    };
+    const { error } = await this.client.from('bookmarks').upsert(payload);
+    if (error) console.error('Erro ao salvar marcador:', error);
   }
 
   async deleteBookmark(id) {
-    await this.client.from('bookmarks').delete().eq('id', id);
+    const { error } = await this.client.from('bookmarks').delete().eq('id', id);
+    if (error) console.error('Erro ao excluir marcador:', error);
   }
 }
 
