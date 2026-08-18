@@ -41,7 +41,7 @@ class ReaderManager {
     if (edgeLeft) edgeLeft.addEventListener('click', () => this.prevPage());
     if (edgeRight) edgeRight.addEventListener('click', () => this.nextPage());
 
-    // Mouse Wheel Scroll & Zoom Controller (Scrolling strictly moves page content, Ctrl+Wheel zooms)
+    // Mouse Wheel Scroll & Zoom Controller
     const viewport = document.getElementById('reader-viewport');
     if (viewport) {
       viewport.addEventListener('wheel', (e) => {
@@ -63,7 +63,7 @@ class ReaderManager {
       let startScrollTop = 0;
 
       viewport.addEventListener('mousedown', (e) => {
-        if (e.button === 2) { // Right mouse button
+        if (e.button === 2) {
           isRightDragging = true;
           startX = e.clientX;
           startY = e.clientY;
@@ -98,7 +98,7 @@ class ReaderManager {
       viewport.addEventListener('mouseleave', stopRightDrag);
 
       viewport.addEventListener('contextmenu', (e) => {
-        e.preventDefault(); // Prevent native right-click context menu in reader viewport
+        e.preventDefault();
       });
     }
 
@@ -200,7 +200,6 @@ class ReaderManager {
   async openBook(book) {
     if (!book) return;
 
-    // Show Reader View Container IMMEDIATELY before any async processing!
     if (!this.readerContainer) {
       this.readerContainer = document.getElementById('reader-view');
     }
@@ -210,19 +209,17 @@ class ReaderManager {
 
     this.isRendering = false;
 
-    // Fetch full book record from IndexedDB if fileBlob is missing
-    if (!book.fileBlob && window.dbManager) {
+    if (!book.fileUrl && !book.fileBlob && window.dbManager) {
       try {
         const dbBook = await window.dbManager.getBook(book.id);
-        if (dbBook && dbBook.fileBlob) {
-          book = dbBook;
-        }
+        if (dbBook) book = dbBook;
       } catch (e) {
-        console.warn('Could not fetch book from DB:', e);
+        console.warn('Não foi possível buscar o livro do banco:', e);
       }
     }
 
-    if (!book.fileBlob) {
+    const source = book.fileUrl || book.fileBlob;
+    if (!source) {
       window.app.showToast('Arquivo de livro inválido ou ausente.', 'error');
       return;
     }
@@ -230,8 +227,9 @@ class ReaderManager {
     this.currentBook = book;
     this.currentPage = book.lastPage || 1;
 
-    document.getElementById('reader-book-title').textContent = book.title || 'Livro';
-    window.app.showToast(`Carregando "${book.title}"...`, 'info');
+    const titleEl = document.getElementById('reader-book-title');
+    if (titleEl) titleEl.textContent = book.title || 'Livro';
+    window.app.showToast(`Carregando "${book.title || 'Livro'}"...`, 'info');
 
     try {
       if (this.currentBlobUrl) {
@@ -240,17 +238,17 @@ class ReaderManager {
       }
 
       let loadingParam;
-      if (book.fileBlob instanceof Blob || book.fileBlob instanceof File) {
-        this.currentBlobUrl = URL.createObjectURL(book.fileBlob);
+      if (typeof source === 'string') {
+        loadingParam = { url: source };
+      } else if (source instanceof Blob || source instanceof File) {
+        this.currentBlobUrl = URL.createObjectURL(source);
         loadingParam = { url: this.currentBlobUrl };
-      } else if (book.fileBlob instanceof ArrayBuffer) {
-        loadingParam = { data: new Uint8Array(book.fileBlob) };
-      } else if (book.fileBlob && book.fileBlob.buffer instanceof ArrayBuffer) {
-        loadingParam = { data: new Uint8Array(book.fileBlob.buffer) };
-      } else if (typeof book.fileBlob === 'string') {
-        loadingParam = { url: book.fileBlob };
+      } else if (source instanceof ArrayBuffer) {
+        loadingParam = { data: new Uint8Array(source) };
+      } else if (source && source.buffer instanceof ArrayBuffer) {
+        loadingParam = { data: new Uint8Array(source.buffer) };
       } else {
-        const blob = new Blob([book.fileBlob], { type: 'application/pdf' });
+        const blob = new Blob([source], { type: 'application/pdf' });
         this.currentBlobUrl = URL.createObjectURL(blob);
         loadingParam = { url: this.currentBlobUrl };
       }
@@ -258,14 +256,16 @@ class ReaderManager {
       const loadingTask = pdfjsLib.getDocument(loadingParam);
       this.pdfDoc = await loadingTask.promise;
 
-      document.getElementById('reader-total-pages').textContent = this.pdfDoc.numPages;
+      const totalPagesEl = document.getElementById('reader-total-pages');
+      if (totalPagesEl) totalPagesEl.textContent = this.pdfDoc.numPages;
 
-      // Initialize Sidebar
-      window.readerSidebarManager.setDocument(this.pdfDoc, this.currentBook);
+      if (window.readerSidebarManager) {
+        window.readerSidebarManager.setDocument(this.pdfDoc, this.currentBook);
+      }
 
       await this.renderCurrentPage();
     } catch (err) {
-      console.error('Failed to open PDF document:', err);
+      console.error('Falha ao abrir documento PDF:', err);
       window.app.showToast('Erro ao abrir o livro PDF: ' + (err.message || err), 'error');
     } finally {
       this.isRendering = false;
@@ -281,8 +281,10 @@ class ReaderManager {
     if (this.currentBook) {
       this.currentBook.lastPage = this.currentPage;
       await window.dbManager.saveBook(this.currentBook);
-      await window.libraryManager.loadBooks();
-      window.libraryManager.renderBooks();
+      if (window.libraryManager) {
+        await window.libraryManager.loadBooks();
+        window.libraryManager.renderBooks();
+      }
     }
 
     this.readerContainer.classList.add('hidden');
@@ -331,14 +333,13 @@ class ReaderManager {
 
     const animClass = direction === 'next' ? 'page-flip-anim-next' : 'page-flip-anim-prev';
     pageContainer.classList.remove('page-flip-anim-next', 'page-flip-anim-prev');
-    void pageContainer.offsetWidth; // Force reflow
+    void pageContainer.offsetWidth;
     pageContainer.classList.add(animClass);
   }
 
   async goToPage(pageNum) {
     if (!this.pdfDoc || pageNum < 1 || pageNum > this.pdfDoc.numPages) return;
     
-    // In spread mode, align to odd page start if available
     if (this.spreadMode === 'double' && pageNum > 1 && pageNum % 2 === 0 && pageNum < this.pdfDoc.numPages) {
       pageNum = pageNum - 1;
     }
@@ -346,7 +347,9 @@ class ReaderManager {
     this.currentPage = pageNum;
     await this.renderCurrentPage();
 
-    window.readerSidebarManager.updateActiveThumbnail(pageNum);
+    if (window.readerSidebarManager) {
+      window.readerSidebarManager.updateActiveThumbnail(pageNum);
+    }
 
     if (this.currentBook) {
       this.currentBook.lastPage = this.currentPage;
@@ -366,14 +369,12 @@ class ReaderManager {
 
     const isDouble = this.spreadMode === 'double' && (this.currentPage < this.pdfDoc.numPages);
 
-    // Update Page Indicator Input
     const pageInput = document.getElementById('reader-page-input');
     if (pageInput) {
       pageInput.value = `${this.currentPage}`;
     }
 
     try {
-      // Calculate perfect fit scale for available viewport dimensions
       const sidebar = document.getElementById('reader-sidebar');
       const isSidebarOpen = sidebar && !sidebar.classList.contains('collapsed');
       const availWidth = window.innerWidth - (isSidebarOpen ? 340 : 80);
@@ -400,14 +401,12 @@ class ReaderManager {
         const page = await this.pdfDoc.getPage(pNum);
         const viewport = page.getViewport({ scale: effectiveScale });
 
-        // PDF Page View Wrapper
         const pageView = document.createElement('div');
         pageView.className = `pdf-page-view ${window.textSelectionManager && window.textSelectionManager.isAreaModeActive ? 'highlight-mode-active' : ''}`;
         pageView.style.width = `${viewport.width}px`;
         pageView.style.height = `${viewport.height}px`;
         pageView.dataset.pageNum = pNum;
 
-        // Canvas Layer
         const canvas = document.createElement('canvas');
         canvas.className = 'pdf-canvas';
         canvas.width = viewport.width;
@@ -416,14 +415,12 @@ class ReaderManager {
         const ctx = canvas.getContext('2d');
         pageView.appendChild(canvas);
 
-        // Text Selection Layer (Precise, Transparent text spans)
         const textLayerDiv = document.createElement('div');
         textLayerDiv.className = 'textLayer';
         textLayerDiv.style.width = `${viewport.width}px`;
         textLayerDiv.style.height = `${viewport.height}px`;
         pageView.appendChild(textLayerDiv);
 
-        // Outer margin click handling for page turning without any DOM overlay block
         pageView.addEventListener('click', (e) => {
           const sel = window.getSelection();
           if (sel && !sel.isCollapsed && sel.toString().trim()) return;
@@ -441,18 +438,15 @@ class ReaderManager {
           }
         });
 
-        // Render Canvas
         await page.render({
           canvasContext: ctx,
           viewport: viewport
         }).promise;
 
-        // Render Precise Text Layer for native text selection
         const textContent = await page.getTextContent();
         this.renderTextLayer(textContent, viewport, textLayerDiv);
 
-        // Load Saved Highlights for this page
-        if (this.currentBook) {
+        if (this.currentBook && window.textSelectionManager) {
           await window.textSelectionManager.loadHighlightsForPage(
             this.currentBook.id,
             pNum,
@@ -463,7 +457,6 @@ class ReaderManager {
         newPageViews.push(pageView);
       }
 
-      // ATOMIC SWAP: Replace DOM elements in 1 single frame once fully rendered to eliminate flickers
       pageContainer.classList.toggle('spread-mode', isDouble);
       pageContainer.replaceChildren(...newPageViews);
 
@@ -491,8 +484,6 @@ class ReaderManager {
       span.style.fontSize = `${fontHeight}px`;
       span.style.fontFamily = item.fontName || 'sans-serif';
       span.style.left = `${tx[4]}px`;
-      
-      // PERFECT VERTICAL BASELINE ALIGNMENT: Align HTML span top with canvas text ascent top
       span.style.top = `${tx[5] - (fontHeight * 0.84)}px`;
       span.style.height = `${fontHeight}px`;
       span.style.lineHeight = '1.0';
@@ -501,7 +492,6 @@ class ReaderManager {
       span.style.whiteSpace = 'pre';
       span.style.color = 'transparent';
 
-      // PERFECT HORIZONTAL SCALE ALIGNMENT: Match exact PDF item width
       if (item.width && viewport.scale) {
         const scaledWidth = item.width * viewport.scale;
         span.style.width = `${scaledWidth}px`;
