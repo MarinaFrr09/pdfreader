@@ -67,13 +67,13 @@ class DatabaseManager {
   async saveBook(book) {
     let publicFileUrl = book.fileUrl;
 
-    // Se houver um arquivo físico novo, envia para o bucket 'pdf-files'
+    // Se houver um arquivo físico novo, envia para o bucket 'pdfs'
     const rawFile = book.file || book.fileBlob;
     if (rawFile && (rawFile instanceof File || rawFile instanceof Blob)) {
       const fileName = `${book.id}_${Date.now()}.pdf`;
       const { data: uploadData, error: uploadError } = await this.client
         .storage
-        .from('pdf-files')
+        .from('pdfs')
         .upload(fileName, rawFile, {
           cacheControl: '3600',
           upsert: true
@@ -86,7 +86,7 @@ class DatabaseManager {
       }
 
       // Obtém a URL pública do PDF
-      const { data: urlData } = this.client.storage.from('pdf-files').getPublicUrl(fileName);
+      const { data: urlData } = this.client.storage.from('pdfs').getPublicUrl(fileName);
       publicFileUrl = urlData.publicUrl;
     }
 
