@@ -209,23 +209,28 @@ class ReaderManager {
 
     this.isRendering = false;
 
-    if (!book.fileUrl && !book.fileBlob && window.dbManager) {
+    // Busca o registro completo no banco se faltar o link do arquivo
+    let source = book.fileUrl || book.fileurl || book.fileBlob || book.file;
+    if (!source && window.dbManager) {
       try {
         const dbBook = await window.dbManager.getBook(book.id);
-        if (dbBook) book = dbBook;
+        if (dbBook) {
+          book = dbBook;
+          source = dbBook.fileUrl || dbBook.fileurl || dbBook.fileBlob || dbBook.file;
+        }
       } catch (e) {
         console.warn('Não foi possível buscar o livro do banco:', e);
       }
     }
 
-    const source = book.fileUrl || book.fileBlob;
     if (!source) {
+      console.error('Livro sem URL/Blob:', book);
       window.app.showToast('Arquivo de livro inválido ou ausente.', 'error');
       return;
     }
 
     this.currentBook = book;
-    this.currentPage = book.lastPage || 1;
+    this.currentPage = book.lastPage || book.lastpage || 1;
 
     const titleEl = document.getElementById('reader-book-title');
     if (titleEl) titleEl.textContent = book.title || 'Livro';
