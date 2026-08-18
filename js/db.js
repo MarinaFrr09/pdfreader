@@ -46,8 +46,11 @@ class DatabaseManager {
     }
     return (data || []).map(b => ({
       ...b,
-      pageCount: b.totalPages || b.pageCount || 1,
-      coverDataUrl: b.coverUrl || b.coverDataUrl
+      totalPages: b.totalPages || b.totalpages || b.pageCount || 1,
+      pageCount: b.totalPages || b.totalpages || b.pageCount || 1,
+      coverUrl: b.coverUrl || b.coverurl || b.coverDataUrl,
+      coverDataUrl: b.coverUrl || b.coverurl || b.coverDataUrl,
+      fileUrl: b.fileUrl || b.fileurl
     }));
   }
 
@@ -59,21 +62,24 @@ class DatabaseManager {
     }
     return data ? {
       ...data,
-      pageCount: data.totalPages || data.pageCount || 1,
-      coverDataUrl: data.coverUrl || data.coverDataUrl
+      totalPages: data.totalPages || data.totalpages || data.pageCount || 1,
+      pageCount: data.totalPages || data.totalpages || data.pageCount || 1,
+      coverUrl: data.coverUrl || data.coverurl || data.coverDataUrl,
+      coverDataUrl: data.coverUrl || data.coverurl || data.coverDataUrl,
+      fileUrl: data.fileUrl || data.fileurl
     } : null;
   }
 
   async saveBook(book) {
-    let publicFileUrl = book.fileUrl;
+    let publicFileUrl = book.fileUrl || book.fileurl;
 
-    // Se houver um arquivo físico novo, envia para o bucket 'pdfs'
+    // Se houver um arquivo físico novo, envia para o bucket 'pdf-files'
     const rawFile = book.file || book.fileBlob;
     if (rawFile && (rawFile instanceof File || rawFile instanceof Blob)) {
       const fileName = `${book.id}_${Date.now()}.pdf`;
       const { data: uploadData, error: uploadError } = await this.client
         .storage
-        .from('pdfs')
+        .from('pdf-files')
         .upload(fileName, rawFile, {
           cacheControl: '3600',
           upsert: true
@@ -85,8 +91,8 @@ class DatabaseManager {
         throw uploadError;
       }
 
-      // Obtém a URL pública do PDF
-      const { data: urlData } = this.client.storage.from('pdfs').getPublicUrl(fileName);
+      // Obtém a URL pública direta do bucket 'pdf-files'
+      const { data: urlData } = this.client.storage.from('pdf-files').getPublicUrl(fileName);
       publicFileUrl = urlData.publicUrl;
     }
 
