@@ -19,7 +19,7 @@ class DatabaseManager {
     return this.client;
   }
 
-  // --- FOLDERS ---
+  // --- PASTAS ---
   async getAllFolders() {
     const { data, error } = await this.client.from('folders').select('*');
     if (error) {
@@ -30,28 +30,25 @@ class DatabaseManager {
   }
 
   async saveFolder(folder) {
-    const folderData = {
-      id: folder.id || String(Date.now()),
+    const { error } = await this.client.from('folders').upsert({
+      id: folder.id,
       name: folder.name
-    };
-    const { data, error } = await this.client.from('folders').upsert(folderData).select();
+    });
     if (error) console.error('Erro ao salvar pasta:', error);
-    return data ? data[0] : null;
   }
 
-  async deleteFolder(folderId) {
-    const { error } = await this.client.from('folders').delete().eq('id', folderId);
-    if (error) console.error('Erro ao deletar pasta:', error);
-  }
-
-  // --- BOOKS ---
+  // --- LIVROS & STORAGE ---
   async getAllBooks() {
     const { data, error } = await this.client.from('books').select('*');
     if (error) {
       console.error('Erro ao buscar livros:', error);
       return [];
     }
-    return data || [];
+    return (data || []).map(b => ({
+      ...b,
+      pageCount: b.totalPages || b.pageCount || 1,
+      coverDataUrl: b.coverUrl || b.coverDataUrl
+    }));
   }
 
   async getBook(id) {
@@ -60,108 +57,93 @@ class DatabaseManager {
       console.error('Erro ao buscar livro:', error);
       return null;
     }
-    return data;
+    return data ? {
+      ...data,
+      pageCount: data.totalPages || data.pageCount || 1,
+      coverDataUrl: data.coverUrl || data.coverDataUrl
+    } : null;
   }
 
   async saveBook(book) {
-    let fileUrl = book.fileUrl;
+    let publicFileUrl = book.fileUrl;
 
-    // Se o livro for um arquivo binário/blob novo, envia para o Storage
-    if (book.file instanceof Blob || book.file instanceof File) {
-      const fileName = `${Date.now()}_${book.title.replace(/\s+/g, '_')}.pdf`;
-      const { error: uploadError } = await this.client.storage
+    // Se houver um arquivo físico novo, envia para o bucket 'pdf-files'
+    const rawFile = book.file || book.fileBlob;
+    if (rawFile && (rawFile instanceof File || rawFile instanceof Blob)) {
+      const fileName = `${book.id}_${Date.now()}.pdf`;
+      const { data: uploadData, error: uploadError } = await this.client
+        .storage
         .from('pdf-files')
-        .upload(fileName, book.file, { upsert: true });
+        .upload(fileName, rawFile, {
+          cacheControl: '3600',
+          upsert: true
+        });
 
-      if (!uploadError) {
-        const { data: publicUrlData } = this.client.storage
-          .from('pdf-files')
-          .getPublicUrl(fileName);
-        fileUrl = publicUrlData.publicUrl;
-      } else {
-        console.error('Erro no upload do PDF:', uploadError);
+      if (uploadError) {
+        console.error('Erro no upload do PDF para o Storage:', uploadError);
+        window.app.showToast('Erro ao subir PDF para o armazenamento.', 'error');
+        throw uploadError;
       }
+
+      // Obtém a URL pública do PDF
+      const { data: urlData } = this.client.storage.from('pdf-files').getPublicUrl(fileName);
+      publicFileUrl = urlData.publicUrl;
     }
 
     const payload = {
-      id: String(book.id || Date.now()),
-      folderId: book.folderId || null,
-      title: book.title || 'Sem título',
-      fileUrl: fileUrl || book.fileUrl || null,
-      coverUrl: book.coverUrl || null,
+      id: book.id,
+      folderId: book.folderId || 'all',
+      title: book.title,
+      fileUrl: publicFileUrl || null,
+      coverUrl: book.coverUrl || book.coverDataUrl || null,
       lastPage: book.lastPage || 1,
-      totalPages: book.totalPages || 0,
+      totalPages: book.totalPages || book.pageCount || 1,
       createdAt: book.createdAt || new Date().toISOString()
     };
 
-    const { data, error } = await this.client.from('books').upsert(payload).select();
-    if (error) console.error('Erro ao salvar livro:', error);
-    return data ? data[0] : null;
+    const { error } = await this.client.from('books').upsert(payload);
+    if (error) {
+      console.error('Erro ao salvar metadados do livro:', error);
+      throw error;
+    }
+
+    return payload;
   }
 
   async deleteBook(id) {
     const { error } = await this.client.from('books').delete().eq('id', id);
-    if (error) console.error('Erro ao deletar livro:', error);
+    if (error) console.error('Erro ao excluir livro:', error);
   }
 
-  // --- HIGHLIGHTS ---
-  async getHighlightsForBook(bookId) {
-    const { data, error } = await this.client.from('highlights').select('*').eq('bookId', bookId);
-    if (error) {
-      console.error('Erro ao buscar grifos:', error);
-      return [];
-    }
-    return data || [];
+  // --- GRIFOS & MARCADORES ---
+  async getHighlights(bookId, pageNum) {
+    const { data, error } = await this.client
+      .from('highlights')
+      .select('*')
+      .eq('bookId', bookId)
+      .eq('pageNum', pageNum);
+    return error ? [] : (data || []);
   }
 
   async saveHighlight(highlight) {
-    const payload = {
-      id: String(highlight.id || Date.now()),
-      bookId: String(highlight.bookId),
-      pageNum: highlight.pageNum,
-      text: highlight.text || '',
-      rects: highlight.rects || [],
-      color: highlight.color || 'yellow',
-      createdAt: highlight.createdAt || new Date().toISOString()
-    };
-
-    const { data, error } = await this.client.from('highlights').upsert(payload).select();
-    if (error) console.error('Erro ao salvar grifo:', error);
-    return data ? data[0] : null;
+    await this.client.from('highlights').upsert(highlight);
   }
 
   async deleteHighlight(id) {
-    const { error } = await this.client.from('highlights').delete().eq('id', id);
-    if (error) console.error('Erro ao deletar grifo:', error);
+    await this.client.from('highlights').delete().eq('id', id);
   }
 
-  // --- BOOKMARKS ---
-  async getBookmarksForBook(bookId) {
+  async getBookmarks(bookId) {
     const { data, error } = await this.client.from('bookmarks').select('*').eq('bookId', bookId);
-    if (error) {
-      console.error('Erro ao buscar marcadores:', error);
-      return [];
-    }
-    return data || [];
+    return error ? [] : (data || []);
   }
 
   async saveBookmark(bookmark) {
-    const payload = {
-      id: String(bookmark.id || Date.now()),
-      bookId: String(bookmark.bookId),
-      pageNum: bookmark.pageNum,
-      title: bookmark.title || `Página ${bookmark.pageNum}`,
-      createdAt: bookmark.createdAt || new Date().toISOString()
-    };
-
-    const { data, error } = await this.client.from('bookmarks').upsert(payload).select();
-    if (error) console.error('Erro ao salvar marcador:', error);
-    return data ? data[0] : null;
+    await this.client.from('bookmarks').upsert(bookmark);
   }
 
   async deleteBookmark(id) {
-    const { error } = await this.client.from('bookmarks').delete().eq('id', id);
-    if (error) console.error('Erro ao deletar marcador:', error);
+    await this.client.from('bookmarks').delete().eq('id', id);
   }
 }
 
