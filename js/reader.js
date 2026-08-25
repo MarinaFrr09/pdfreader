@@ -8,7 +8,8 @@ class ReaderManager {
     this.pdfDoc = null;
     this.currentPage = 1;
     this.scale = 1.0;
-    this.spreadMode = 'double'; // 'double' (2 Páginas lado a lado por padrão) ou 'single'
+    const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    this.spreadMode = isMobile ? 'single' : 'double';
     this.isRendering = false;
     this.readerContainer = null;
   }
@@ -60,6 +61,40 @@ class ReaderManager {
         if (edgeBtnPrev) edgeBtnPrev.classList.remove('visible');
         if (edgeBtnNext) edgeBtnNext.classList.remove('visible');
       });
+    }
+
+    // Touch Swipe Gestures for Mobile
+    if (viewport) {
+      let touchStartX = 0;
+      let touchStartY = 0;
+      let touchStartTime = 0;
+
+      viewport.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+          touchStartX = e.touches[0].clientX;
+          touchStartY = e.touches[0].clientY;
+          touchStartTime = Date.now();
+        }
+      }, { passive: true });
+
+      viewport.addEventListener('touchend', (e) => {
+        if (e.changedTouches.length === 1) {
+          const touchEndX = e.changedTouches[0].clientX;
+          const touchEndY = e.changedTouches[0].clientY;
+          const dx = touchEndX - touchStartX;
+          const dy = touchEndY - touchStartY;
+          const dt = Date.now() - touchStartTime;
+
+          // Horizontal swipe: dx > 40px and dominant over vertical scroll
+          if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 450) {
+            if (dx < 0) {
+              this.nextPage(); // Swipe left -> Next page
+            } else {
+              this.prevPage(); // Swipe right -> Previous page
+            }
+          }
+        }
+      }, { passive: true });
     }
 
     // Mouse Wheel Scroll & Zoom Controller
@@ -252,6 +287,17 @@ class ReaderManager {
     this.currentBook = book;
     this.currentPage = book.lastPage || book.lastpage || 1;
 
+    const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobile) {
+      this.spreadMode = 'single';
+      const spreadLabel = document.getElementById('spread-mode-label');
+      if (spreadLabel) spreadLabel.innerHTML = '1 Pág <small style="font-size: 0.65rem; opacity: 0.7; font-weight: 500;">(P)</small>';
+      const btnSpreadToggle = document.getElementById('btn-toggle-spread-mode');
+      if (btnSpreadToggle) btnSpreadToggle.classList.remove('active');
+      const sidebar = document.getElementById('reader-sidebar');
+      if (sidebar) sidebar.classList.add('collapsed');
+    }
+
     const titleEl = document.getElementById('reader-book-title');
     if (titleEl) titleEl.textContent = book.title || 'Livro';
     window.app.showToast(`Carregando "${book.title || 'Livro'}"...`, 'info');
@@ -321,14 +367,16 @@ class ReaderManager {
   }
 
   async prevPage() {
-    const step = this.spreadMode === 'double' ? 2 : 1;
+    const isMobile = window.innerWidth <= 768;
+    const step = (this.spreadMode === 'double' && !isMobile) ? 2 : 1;
     if (this.currentPage > 1) {
       this.goToPage(Math.max(1, this.currentPage - step));
     }
   }
 
   async nextPage() {
-    const step = this.spreadMode === 'double' ? 2 : 1;
+    const isMobile = window.innerWidth <= 768;
+    const step = (this.spreadMode === 'double' && !isMobile) ? 2 : 1;
     if (this.pdfDoc && this.currentPage < this.pdfDoc.numPages) {
       this.goToPage(Math.min(this.pdfDoc.numPages, this.currentPage + step));
     }
@@ -353,7 +401,8 @@ class ReaderManager {
   async goToPage(pageNum) {
     if (!this.pdfDoc || pageNum < 1 || pageNum > this.pdfDoc.numPages) return;
     
-    if (this.spreadMode === 'double' && pageNum > 1 && pageNum % 2 === 0 && pageNum < this.pdfDoc.numPages) {
+    const isMobile = window.innerWidth <= 768;
+    if (this.spreadMode === 'double' && !isMobile && pageNum > 1 && pageNum % 2 === 0 && pageNum < this.pdfDoc.numPages) {
       pageNum = pageNum - 1;
     }
 
@@ -380,7 +429,12 @@ class ReaderManager {
       return;
     }
 
-    const isDouble = this.spreadMode === 'double' && (this.currentPage < this.pdfDoc.numPages);
+    const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobile) {
+      this.spreadMode = 'single';
+    }
+
+    const isDouble = this.spreadMode === 'double' && (this.currentPage < this.pdfDoc.numPages) && !isMobile;
 
     const pageInput = document.getElementById('reader-page-input');
     if (pageInput) {
@@ -397,7 +451,10 @@ class ReaderManager {
       const unscaled = firstPage.getViewport({ scale: 1.0 });
 
       let baseFitScale = 1.0;
-      if (isDouble) {
+      if (isMobile) {
+        const mobileW = window.innerWidth;
+        baseFitScale = mobileW / unscaled.width;
+      } else if (isDouble) {
         baseFitScale = Math.min((availWidth / (2 * unscaled.width)), (availHeight / unscaled.height));
       } else {
         baseFitScale = Math.min((availWidth / unscaled.width), (availHeight / unscaled.height));

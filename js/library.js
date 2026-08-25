@@ -428,6 +428,11 @@ class LibraryManager {
         this.currentFolderId = folder.id;
         this.showLibraryView();
         this.render();
+
+        const sidebar = document.querySelector('.library-sidebar');
+        const backdrop = document.getElementById('mobile-sidebar-backdrop');
+        if (sidebar) sidebar.classList.remove('mobile-open');
+        if (backdrop) backdrop.classList.add('hidden');
       });
 
       item.addEventListener('contextmenu', (e) => {

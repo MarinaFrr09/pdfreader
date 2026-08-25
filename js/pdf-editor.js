@@ -50,6 +50,15 @@ class PdfEditorManager {
     if (btnPrev) btnPrev.addEventListener('click', () => this.changePage(-1));
     if (btnNext) btnNext.addEventListener('click', () => this.changePage(1));
 
+    // Toggle Tools in Mobile
+    const btnToggleTools = document.getElementById('btn-toggle-editor-tools');
+    const studioToolbar = document.querySelector('.editor-studio-toolbar');
+    if (btnToggleTools && studioToolbar) {
+      btnToggleTools.addEventListener('click', () => {
+        studioToolbar.classList.toggle('collapsed-mobile');
+      });
+    }
+
     // Zoom controls
     const btnZoomOut = document.getElementById('btn-editor-zoom-out');
     const btnZoomIn = document.getElementById('btn-editor-zoom-in');
@@ -232,7 +241,17 @@ class PdfEditorManager {
       this.pageCanvasStates = {};
       this.historyStack = [];
 
-      document.getElementById('editor-doc-title').textContent = book.title || 'Documento PDF';
+      const isMobile = window.innerWidth <= 768;
+      if (isMobile) {
+        const firstPage = await this.pdfDoc.getPage(1);
+        const unscaled = firstPage.getViewport({ scale: 1.0 });
+        const availWidth = window.innerWidth - 16;
+        this.scale = Math.min(1.0, +(availWidth / unscaled.width).toFixed(2));
+      } else {
+        this.scale = 1.0;
+      }
+
+      document.getElementById('editor-doc-title').textContent = book.title || 'Editor de PDF';
       document.getElementById('editor-empty-upload').classList.add('hidden');
       document.getElementById('editor-page-wrapper').classList.remove('hidden');
 

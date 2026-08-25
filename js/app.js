@@ -55,12 +55,23 @@ class App {
   setupAuthListeners() {
     const btnGoogle = document.getElementById('btn-google-login');
     const btnLogout = document.getElementById('btn-logout');
+    const formGoogle = document.getElementById('form-google-signin');
 
     if (btnGoogle) {
       btnGoogle.addEventListener('click', async () => {
         if (window.dbManager) {
-          this.showToast('Redirecionando para o login do Google...', 'info');
           await window.dbManager.signInWithGoogle();
+        }
+      });
+    }
+
+    if (formGoogle) {
+      formGoogle.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const emailInput = document.getElementById('google-email-input');
+        const nameInput = document.getElementById('google-name-input');
+        if (emailInput && emailInput.value && window.dbManager) {
+          await window.dbManager.signInWithGoogleAccount(emailInput.value, nameInput ? nameInput.value : '');
         }
       });
     }
@@ -69,9 +80,12 @@ class App {
       btnLogout.addEventListener('click', async () => {
         if (window.dbManager) {
           await window.dbManager.signOut();
-          this.showToast('Você saiu da conta.');
         }
       });
+    }
+
+    if (window.dbManager && window.dbManager.currentUser) {
+      this.onAuthChange(window.dbManager.currentUser);
     }
   }
 
@@ -89,7 +103,7 @@ class App {
         const userEmail = document.getElementById('user-email');
 
         const metadata = user.user_metadata || {};
-        if (avatarImg) avatarImg.src = metadata.avatar_url || metadata.picture || 'https://via.placeholder.com/32';
+        if (avatarImg) avatarImg.src = metadata.avatar_url || metadata.picture || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.email || 'user'}`;
         if (userName) userName.textContent = metadata.full_name || metadata.name || user.email.split('@')[0];
         if (userEmail) userEmail.textContent = user.email || '';
       }
