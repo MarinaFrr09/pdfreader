@@ -12,6 +12,7 @@ class App {
     this.setupThemeToggle();
     this.setupGlobalShortcuts();
     this.setupAuthListeners();
+    this.setupMobileMenu();
 
     // Configure PDF.js Worker path
     if (window.pdfjsLib) {
@@ -26,8 +27,29 @@ class App {
     await window.libraryManager.init();
     window.readerManager.init();
     window.textSelectionManager.init();
+    if (window.pdfToolsManager) window.pdfToolsManager.init();
+    if (window.pdfEditorManager) window.pdfEditorManager.init();
 
     console.log('PDF Book Reader application initialized successfully.');
+  }
+
+  setupMobileMenu() {
+    const btnMobileMenu = document.getElementById('btn-mobile-menu-toggle');
+    const librarySidebar = document.querySelector('.library-sidebar');
+    const backdrop = document.getElementById('mobile-sidebar-backdrop');
+
+    if (btnMobileMenu && librarySidebar && backdrop) {
+      btnMobileMenu.addEventListener('click', () => {
+        const isOpen = librarySidebar.classList.contains('mobile-open');
+        librarySidebar.classList.toggle('mobile-open', !isOpen);
+        backdrop.classList.toggle('hidden', isOpen);
+      });
+
+      backdrop.addEventListener('click', () => {
+        librarySidebar.classList.remove('mobile-open');
+        backdrop.classList.add('hidden');
+      });
+    }
   }
 
   setupAuthListeners() {
@@ -212,6 +234,59 @@ class App {
       toast.style.transition = 'all 0.3s ease';
       setTimeout(() => toast.remove(), 300);
     }, 3200);
+  }
+
+  showPromptModal(title, excerptText, defaultText = '') {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('modal-annotation');
+      const titleEl = document.getElementById('annotation-modal-title');
+      const excerptEl = document.getElementById('annotation-excerpt-preview');
+      const inputEl = document.getElementById('annotation-text-input');
+      const btnSave = document.getElementById('btn-save-annotation');
+      const btnCancel = document.getElementById('btn-cancel-annotation');
+      const btnClose = document.getElementById('btn-close-annotation-modal');
+
+      if (!modal || !inputEl) {
+        resolve(null);
+        return;
+      }
+
+      if (titleEl) titleEl.textContent = title || 'Anotação / Comentário';
+      if (excerptEl) {
+        if (excerptText) {
+          excerptEl.textContent = `"${excerptText.substring(0, 120)}${excerptText.length > 120 ? '...' : ''}"`;
+          excerptEl.style.display = 'block';
+        } else {
+          excerptEl.style.display = 'none';
+        }
+      }
+
+      inputEl.value = defaultText || '';
+      modal.classList.remove('hidden');
+      setTimeout(() => inputEl.focus(), 50);
+
+      const cleanup = () => {
+        modal.classList.add('hidden');
+        btnSave.removeEventListener('click', handleSave);
+        btnCancel.removeEventListener('click', handleCancel);
+        if (btnClose) btnClose.removeEventListener('click', handleCancel);
+      };
+
+      const handleSave = () => {
+        const val = inputEl.value;
+        cleanup();
+        resolve(val);
+      };
+
+      const handleCancel = () => {
+        cleanup();
+        resolve(null);
+      };
+
+      btnSave.addEventListener('click', handleSave);
+      btnCancel.addEventListener('click', handleCancel);
+      if (btnClose) btnClose.addEventListener('click', handleCancel);
+    });
   }
 }
 

@@ -34,15 +34,35 @@ class ReaderManager {
     if (btnPrev) btnPrev.addEventListener('click', () => this.prevPage());
     if (btnNext) btnNext.addEventListener('click', () => this.nextPage());
 
-    // Screen Edge Click Zones
-    const edgeLeft = document.getElementById('edge-left');
-    const edgeRight = document.getElementById('edge-right');
+    // Side Edge Floating Arrow Buttons
+    const edgeBtnPrev = document.getElementById('edge-btn-prev');
+    const edgeBtnNext = document.getElementById('edge-btn-next');
 
-    if (edgeLeft) edgeLeft.addEventListener('click', () => this.prevPage());
-    if (edgeRight) edgeRight.addEventListener('click', () => this.nextPage());
+    if (edgeBtnPrev) edgeBtnPrev.addEventListener('click', (e) => { e.stopPropagation(); this.prevPage(); });
+    if (edgeBtnNext) edgeBtnNext.addEventListener('click', (e) => { e.stopPropagation(); this.nextPage(); });
+
+    // Proximity Mouse Movement Listener for Edge Buttons
+    const viewport = document.getElementById('reader-viewport');
+    if (viewport && (edgeBtnPrev || edgeBtnNext)) {
+      viewport.addEventListener('mousemove', (e) => {
+        const rect = viewport.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const width = rect.width;
+
+        const nearLeft = x < width * 0.25;
+        const nearRight = x > width * 0.75;
+
+        if (edgeBtnPrev) edgeBtnPrev.classList.toggle('visible', nearLeft);
+        if (edgeBtnNext) edgeBtnNext.classList.toggle('visible', nearRight);
+      });
+
+      viewport.addEventListener('mouseleave', () => {
+        if (edgeBtnPrev) edgeBtnPrev.classList.remove('visible');
+        if (edgeBtnNext) edgeBtnNext.classList.remove('visible');
+      });
+    }
 
     // Mouse Wheel Scroll & Zoom Controller
-    const viewport = document.getElementById('reader-viewport');
     if (viewport) {
       viewport.addEventListener('wheel', (e) => {
         if (e.ctrlKey) {
@@ -292,7 +312,10 @@ class ReaderManager {
       }
     }
 
-    this.readerContainer.classList.add('hidden');
+    if (this.readerContainer) {
+      this.readerContainer.classList.add('hidden');
+    }
+
     this.pdfDoc = null;
     this.currentBook = null;
   }
@@ -300,7 +323,6 @@ class ReaderManager {
   async prevPage() {
     const step = this.spreadMode === 'double' ? 2 : 1;
     if (this.currentPage > 1) {
-      this.triggerFlipAnimation('prev');
       this.goToPage(Math.max(1, this.currentPage - step));
     }
   }
@@ -308,7 +330,6 @@ class ReaderManager {
   async nextPage() {
     const step = this.spreadMode === 'double' ? 2 : 1;
     if (this.pdfDoc && this.currentPage < this.pdfDoc.numPages) {
-      this.triggerFlipAnimation('next');
       this.goToPage(Math.min(this.pdfDoc.numPages, this.currentPage + step));
     }
   }
@@ -327,19 +348,6 @@ class ReaderManager {
     }
     this.renderCurrentPage();
     window.app.showToast(`Modo de visualização: ${this.spreadMode === 'double' ? '2 Páginas' : '1 Página'}`);
-  }
-
-  triggerFlipAnimation(direction) {
-    const isAnimEnabled = localStorage.getItem('pdf_page_animation') !== 'off';
-    if (!isAnimEnabled) return;
-
-    const pageContainer = document.getElementById('pdf-page-container');
-    if (!pageContainer) return;
-
-    const animClass = direction === 'next' ? 'page-flip-anim-next' : 'page-flip-anim-prev';
-    pageContainer.classList.remove('page-flip-anim-next', 'page-flip-anim-prev');
-    void pageContainer.offsetWidth;
-    pageContainer.classList.add(animClass);
   }
 
   async goToPage(pageNum) {

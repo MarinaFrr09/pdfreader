@@ -12,11 +12,11 @@ class TextSelectionManager {
     this.highlightOpacity = parseFloat(localStorage.getItem('highlight_opacity') || '0.48');
 
     this.colors = {
-      pink: '#ff2a70',
-      yellow: '#ffd600',
-      green: '#00b828',
-      blue: '#2563eb',
-      purple: '#9333ea'
+      pink: 'rgba(255, 42, 112, 0.38)',
+      yellow: 'rgba(255, 214, 0, 0.48)',
+      green: 'rgba(0, 184, 40, 0.38)',
+      blue: 'rgba(37, 99, 235, 0.38)',
+      purple: 'rgba(147, 51, 234, 0.38)'
     };
 
     this.isDrawing = false;
@@ -81,25 +81,6 @@ class TextSelectionManager {
             });
           }
         });
-      });
-    }
-
-    // Page Animation Toggle Button
-    if (btnToggleAnim && animLabel) {
-      let isAnimOn = localStorage.getItem('pdf_page_animation') !== 'off';
-      animLabel.textContent = isAnimOn ? 'Com Animação' : 'Sem Animação';
-      document.body.classList.toggle('no-page-animation', !isAnimOn);
-
-      btnToggleAnim.addEventListener('click', () => {
-        isAnimOn = !isAnimOn;
-        localStorage.setItem('pdf_page_animation', isAnimOn ? 'on' : 'off');
-        animLabel.textContent = isAnimOn ? 'Com Animação' : 'Sem Animação';
-        document.body.classList.toggle('no-page-animation', !isAnimOn);
-
-        const pageContainer = document.getElementById('pdf-page-container');
-        if (pageContainer) {
-          pageContainer.classList.remove('page-flip-anim-next', 'page-flip-anim-prev');
-        }
       });
     }
 
@@ -183,16 +164,19 @@ class TextSelectionManager {
   }
 
   setupEventListeners() {
-    // Selection Change Listener
+    // Selection Change Listener - Update selection coordinates only (no auto-save)
     document.addEventListener('selectionchange', () => {
       this.handleSelectionChange();
     });
 
-    // Mouse Up Trigger
+    // Mouse Up Trigger - Apply highlight ONCE when user finishes dragging mouse
     document.addEventListener('mouseup', (e) => {
-      if (!this.isDrawing) {
-        setTimeout(() => this.handleSelectionChange(), 30);
-      }
+      setTimeout(() => {
+        this.handleSelectionChange();
+        if (this.isAreaModeActive && this.activeSelection && this.activeSelection.text) {
+          this.applyHighlight(this.selectedColorKey || 'yellow');
+        }
+      }, 50);
     });
 
     // 2 CLIQUES (dblclick): Seleciona APENAS 1 palavra
@@ -320,7 +304,11 @@ class TextSelectionManager {
     const defaultColorKey = this.selectedColorKey || 'yellow';
     const highlightColor = this.colors[defaultColorKey] || this.colors.yellow;
 
-    const noteText = prompt(`Digite a sua anotação/comentário para o trecho:\n"${this.activeSelection.text.substring(0, 50)}..."`);
+    const noteText = await window.app.showPromptModal(
+      'Adicionar Anotação ao Trecho',
+      this.activeSelection.text,
+      ''
+    );
     if (noteText === null) return; // User cancelled
 
     const highlight = {
@@ -341,6 +329,8 @@ class TextSelectionManager {
 
     if (window.readerSidebarManager) {
       window.readerSidebarManager.renderHighlightsList();
+      window.readerSidebarManager.renderNotesList();
+      window.readerSidebarManager.updateNotesBadge();
     }
 
     window.app.showToast('Nota salva com sucesso!');
@@ -548,20 +538,41 @@ class TextSelectionManager {
       pageNum: pageNum
     };
 
-    // If Grifar Toggle Mode is ON: Auto-highlight selection immediately!
+    // In Grifar mode, hide popup while selecting; mouseup will trigger applyHighlight once
     if (this.isAreaModeActive) {
-      this.applyHighlight(this.selectedColorKey || 'yellow');
+      this.hidePopup();
       return;
     }
 
-    // Position Popup above selection
-    const firstRect = clientRects[0];
-    const popupLeft = firstRect.left + (firstRect.width / 2);
-    const popupTop = firstRect.top - 8;
-
-    this.popup.style.left = `${popupLeft}px`;
-    this.popup.style.top = `${popupTop}px`;
+    // Unhide temporarily to accurately measure dimensions
     this.popup.classList.remove('hidden');
+
+    const firstRect = clientRects[0];
+    const popupWidth = this.popup.offsetWidth || 380;
+    const popupHeight = this.popup.offsetHeight || 44;
+
+    // Center horizontally over selection
+    let popupLeft = firstRect.left + (firstRect.width / 2) - (popupWidth / 2);
+    // Position above selection
+    let popupTop = firstRect.top - popupHeight - 12;
+
+    // Strict viewport containment clamping (never cut off on left, right, top, or bottom)
+    const padding = 16;
+    if (popupLeft < padding) {
+      popupLeft = padding;
+    } else if (popupLeft + popupWidth > window.innerWidth - padding) {
+      popupLeft = window.innerWidth - popupWidth - padding;
+    }
+
+    if (popupTop < padding) {
+      // If selection is near top edge of browser window, position popup BELOW selection!
+      popupTop = firstRect.bottom + 12;
+    } else if (popupTop + popupHeight > window.innerHeight - padding) {
+      popupTop = window.innerHeight - popupHeight - padding;
+    }
+
+    this.popup.style.left = `${Math.round(popupLeft)}px`;
+    this.popup.style.top = `${Math.round(popupTop)}px`;
   }
 
   executeInstantHighlight(colorKey) {
@@ -578,7 +589,7 @@ class TextSelectionManager {
   }
 
   async applyHighlight(colorKey) {
-    if (!this.activeSelection || !window.readerManager.currentBook) return;
+    if (!this.activeSelection || !this.activeSelection.text || !window.readerManager.currentBook) return;
 
     this.selectedColorKey = colorKey;
     localStorage.setItem('last_highlight_color', colorKey);
@@ -594,15 +605,19 @@ class TextSelectionManager {
       createdAt: Date.now()
     };
 
+    const targetPageWrapper = this.activeSelection.pageWrapper;
+    this.activeSelection = null; // Clear immediately so double execution is impossible
+
     await window.dbManager.saveHighlight(highlight);
-    this.renderHighlightOnPage(highlight, this.activeSelection.pageWrapper);
+    this.renderHighlightOnPage(highlight, targetPageWrapper);
     
     // Clear native browser selection & hide popup
-    window.getSelection().removeAllRanges();
+    try { window.getSelection().removeAllRanges(); } catch(e) {}
     this.hidePopup();
 
     if (window.readerSidebarManager) {
       window.readerSidebarManager.renderHighlightsList();
+      window.readerSidebarManager.updateNotesBadge();
     }
   }
 
@@ -627,8 +642,7 @@ class TextSelectionManager {
     groupEl.style.left = '0';
     groupEl.style.width = '100%';
     groupEl.style.height = '100%';
-    groupEl.style.pointerEvents = 'none';
-    groupEl.style.opacity = `${this.highlightOpacity || 0.48}`;
+    groupEl.style.opacity = '1.0';
     const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
     groupEl.style.mixBlendMode = currentTheme === 'dark' ? 'screen' : 'multiply';
     groupEl.style.zIndex = '10';
@@ -642,22 +656,7 @@ class TextSelectionManager {
       rectEl.style.width = `${r.width * 100}%`;
       rectEl.style.height = `${r.height * 100}%`;
       rectEl.style.backgroundColor = highlight.color;
-      rectEl.style.pointerEvents = 'auto';
-      rectEl.style.cursor = 'pointer';
-      rectEl.title = `Marcador: "${highlight.text}" (Clique para remover)`;
-
-      // Delete highlight on click option
-      rectEl.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        if (confirm(`Deseja remover este marcador pastel?`)) {
-          await window.dbManager.deleteHighlight(highlight.id);
-          groupEl.remove();
-          if (window.readerSidebarManager) {
-            window.readerSidebarManager.renderHighlightsList();
-          }
-        }
-      });
-
+      rectEl.style.pointerEvents = 'none';
       groupEl.appendChild(rectEl);
     });
 
@@ -674,7 +673,10 @@ class TextSelectionManager {
   }
 
   async removeHighlightForSelection() {
-    if (!this.activeSelection || !window.readerManager.currentBook) return;
+    if (!this.activeSelection || !this.activeSelection.text || !window.readerManager.currentBook) {
+      window.app.showToast('Selecione primeiro com o mouse o trecho onde deseja remover a marcação.', 'info');
+      return;
+    }
 
     const bookId = window.readerManager.currentBook.id;
     const pageNum = this.activeSelection.pageNum;
@@ -691,11 +693,19 @@ class TextSelectionManager {
       let isTouched = false;
 
       for (const hr of h.rects) {
-        // Find selection rects on the same line (vertical overlap)
+        const hrCenterY = hr.top + (hr.height / 2);
+        const lineThreshold = Math.max(0.012, hr.height * 0.7);
+
+        // Find selection rects on the exact same line (vertical center-Y match)
         const overlappingSelRects = selRects.filter(sr => {
-          const verticalOverlap = !(sr.top > hr.top + hr.height || sr.top + sr.height < hr.top);
-          const horizontalOverlap = !(sr.left > hr.left + hr.width || sr.left + sr.width < hr.left);
-          return verticalOverlap && horizontalOverlap;
+          const srCenterY = sr.top + (sr.height / 2);
+          const sameLine = Math.abs(srCenterY - hrCenterY) < lineThreshold;
+          
+          const srRight = sr.left + sr.width;
+          const hrRight = hr.left + hr.width;
+          const horizontalOverlap = (sr.left < hrRight) && (srRight > hr.left);
+
+          return sameLine && horizontalOverlap;
         });
 
         if (overlappingSelRects.length === 0) {
@@ -742,27 +752,26 @@ class TextSelectionManager {
       if (isTouched) {
         modifiedCount++;
         if (newRects.length === 0) {
-          await window.dbManager.deleteHighlight(h.id);
+          const overlay = pageWrapper.querySelector('.highlights-overlay');
+          if (overlay) {
+            const existingGroup = overlay.querySelector(`[data-highlight-id="${h.id}"]`);
+            if (existingGroup) existingGroup.remove();
+          }
+          window.dbManager.deleteHighlight(h.id);
         } else {
           h.rects = newRects;
-          await window.dbManager.saveHighlight(h);
+          this.renderHighlightOnPage(h, pageWrapper);
+          window.dbManager.saveHighlight(h);
         }
       }
     }
 
-    // Re-render highlights on page
-    const overlay = pageWrapper.querySelector('.highlights-overlay');
-    if (overlay) overlay.innerHTML = '';
-    
-    const updatedHighlights = await window.dbManager.getHighlightsForBook(bookId);
-    const updatedPageHighlights = updatedHighlights.filter(h => h.pageNum === pageNum);
-    updatedPageHighlights.forEach(h => this.renderHighlightOnPage(h, pageWrapper));
-
-    window.getSelection().removeAllRanges();
+    this.activeSelection = null;
+    try { window.getSelection().removeAllRanges(); } catch(e) {}
     this.hidePopup();
 
     if (window.readerSidebarManager) {
-      window.readerSidebarManager.renderHighlightsList();
+      setTimeout(() => window.readerSidebarManager.renderHighlightsList(), 50);
     }
 
     if (modifiedCount > 0) {

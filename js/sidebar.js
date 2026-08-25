@@ -1,5 +1,5 @@
 /* ==========================================================================
-   READER SIDEBAR MANAGER (Thumbnails, Search Panel & Bookmarks)
+   READER SIDEBAR MANAGER (Thumbnails, Search, Bookmarks, Highlights & Notes)
    ========================================================================== */
 
 class ReaderSidebarManager {
@@ -7,6 +7,7 @@ class ReaderSidebarManager {
     this.activeTab = 'thumbnails';
     this.pdfDoc = null;
     this.book = null;
+    this.currentDetailHl = null;
   }
 
   init() {
@@ -14,6 +15,8 @@ class ReaderSidebarManager {
     this.setupSearchEvents();
     this.setupBookmarkEvents();
     this.setupHighlightEvents();
+    this.setupNotesEvents();
+    this.setupHighlightDetailModalEvents();
     this.setupOutsideClickClose();
   }
 
@@ -25,13 +28,13 @@ class ReaderSidebarManager {
 
       if (!sidebar || sidebar.classList.contains('collapsed')) return;
 
-      // Check if click target is outside sidebar AND outside book pages
       const isInsideSidebar = sidebar.contains(e.target);
       const isInsidePage = e.target.closest('.pdf-page-view') || e.target.closest('.page-container-wrapper');
+      const isModal = e.target.closest('.modal-overlay');
       const isToggleBtn = (btnSidebarToggle && btnSidebarToggle.contains(e.target)) || 
                           (btnVerGrifosBottom && btnVerGrifosBottom.contains(e.target));
 
-      if (!isInsideSidebar && !isInsidePage && !isToggleBtn) {
+      if (!isInsideSidebar && !isInsidePage && !isModal && !isToggleBtn) {
         sidebar.classList.add('collapsed');
         if (btnSidebarToggle) btnSidebarToggle.classList.remove('active');
       }
@@ -70,6 +73,8 @@ class ReaderSidebarManager {
       this.renderBookmarks();
     } else if (tabName === 'highlights' && this.book) {
       this.renderHighlightsList();
+    } else if (tabName === 'notes' && this.book) {
+      this.renderNotesList();
     }
   }
 
@@ -77,14 +82,30 @@ class ReaderSidebarManager {
     this.pdfDoc = pdfDoc;
     this.book = book;
 
+    this.updateNotesBadge();
+
     if (this.activeTab === 'thumbnails') {
       this.renderThumbnails();
     } else if (this.activeTab === 'bookmarks') {
       this.renderBookmarks();
     } else if (this.activeTab === 'highlights') {
       this.renderHighlightsList();
+    } else if (this.activeTab === 'notes') {
+      this.renderNotesList();
     }
   }
+
+  async updateNotesBadge() {
+    if (!this.book) return;
+    try {
+      const highlights = await window.dbManager.getHighlightsForBook(this.book.id);
+      const notes = highlights.filter(h => h.note && h.note.trim());
+      const badge = document.getElementById('notes-count-badge');
+      if (badge) badge.textContent = notes.length;
+    } catch(e) {}
+  }
+
+  // === THUMBNAILS ===
 
   async renderThumbnails() {
     const grid = document.getElementById('thumbnails-grid');
@@ -96,12 +117,10 @@ class ReaderSidebarManager {
     const bookmarks = await window.dbManager.getBookmarksForBook(this.book.id);
     const bookmarkedPages = new Set(bookmarks.map(b => b.pageNum));
 
-    // Disconnect old observer if exists
     if (this.thumbObserver) {
       this.thumbObserver.disconnect();
     }
 
-    // Lazy load thumbnails using IntersectionObserver
     this.thumbObserver = new IntersectionObserver((entries, observer) => {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
@@ -120,7 +139,6 @@ class ReaderSidebarManager {
       threshold: 0.01
     });
 
-    // Create fragment for fast DOM insertion
     const fragment = document.createDocumentFragment();
 
     for (let i = 1; i <= numPages; i++) {
@@ -149,168 +167,169 @@ class ReaderSidebarManager {
       const bmBtn = item.querySelector('.thumb-bookmark-btn');
       bmBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
-        await this.togglePageBookmark(i);
+        const pageNum = parseInt(bmBtn.dataset.page, 10);
+        const isActive = bmBtn.classList.contains('active');
+
+        if (isActive) {
+          const bms = await window.dbManager.getBookmarksForBook(this.book.id);
+          const target = bms.find(b => b.pageNum === pageNum);
+          if (target) {
+            await window.dbManager.deleteBookmark(target.id);
+            bmBtn.classList.remove('active');
+            bmBtn.querySelector('svg').setAttribute('fill', 'none');
+            window.app.showToast(`Marcador da página ${pageNum} removido.`);
+          }
+        } else {
+          await window.dbManager.saveBookmark({
+            bookId: this.book.id,
+            pageNum: pageNum,
+            title: `Página ${pageNum}`,
+            createdAt: new Date().toISOString()
+          });
+          bmBtn.classList.add('active');
+          bmBtn.querySelector('svg').setAttribute('fill', 'currentColor');
+          window.app.showToast(`Página ${pageNum} marcada.`);
+        }
+
+        if (this.activeTab === 'bookmarks') {
+          this.renderBookmarks();
+        }
       });
 
+      this.thumbObserver.observe(item);
       fragment.appendChild(item);
     }
 
     grid.appendChild(fragment);
-
-    // Observe all thumbnail items for scroll-based lazy rendering
-    grid.querySelectorAll('.thumbnail-item').forEach(item => {
-      this.thumbObserver.observe(item);
-    });
   }
 
   async renderPageThumbnail(pageNum) {
+    const wrap = document.getElementById(`thumb-wrap-${pageNum}`);
+    if (!wrap || !this.pdfDoc) return;
+
     try {
       const page = await this.pdfDoc.getPage(pageNum);
-      const viewport = page.getViewport({ scale: 0.2 });
+      const viewport = page.getViewport({ scale: 0.22 });
 
       const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
       canvas.width = viewport.width;
       canvas.height = viewport.height;
 
+      const ctx = canvas.getContext('2d');
       await page.render({ canvasContext: ctx, viewport: viewport }).promise;
 
-      const wrapper = document.getElementById(`thumb-wrap-${pageNum}`);
-      if (wrapper) {
-        wrapper.innerHTML = '';
-        wrapper.appendChild(canvas);
-      }
+      wrap.innerHTML = '';
+      wrap.appendChild(canvas);
     } catch (e) {
-      console.warn(`Failed to render thumbnail for page ${pageNum}`, e);
+      console.warn(`Erro ao gerar miniatura da pág ${pageNum}:`, e);
     }
   }
 
   updateActiveThumbnail(pageNum) {
-    const items = document.querySelectorAll('.thumbnail-item');
-    items.forEach(item => {
+    document.querySelectorAll('.thumbnail-item').forEach(item => {
       const p = parseInt(item.dataset.page, 10);
       item.classList.toggle('active', p === pageNum);
     });
   }
 
+  // === IN-BOOK SEARCH ===
+
   setupSearchEvents() {
-    const searchInput = document.getElementById('reader-search-input');
-    if (searchInput) {
-      let timeout = null;
-      searchInput.addEventListener('input', (e) => {
-        clearTimeout(timeout);
-        const query = e.target.value;
-        timeout = setTimeout(() => {
-          this.executeSearch(query);
-        }, 300);
-      });
-    }
+    const input = document.getElementById('reader-search-input');
+    if (!input) return;
+
+    let debounceTimer;
+    input.addEventListener('input', (e) => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        this.performInBookSearch(e.target.value);
+      }, 350);
+    });
   }
 
-  async executeSearch(query) {
+  async performInBookSearch(query) {
     const resultsContainer = document.getElementById('search-results-list');
-    if (!resultsContainer) return;
+    if (!resultsContainer || !this.pdfDoc) return;
 
-    if (!query || query.trim().length < 2) {
-      resultsContainer.innerHTML = '<p style="font-size: 0.85rem; color: var(--text-muted);">Digite pelo menos 2 caracteres para pesquisar.</p>';
+    query = query.trim().toLowerCase();
+    if (!query) {
+      resultsContainer.innerHTML = '<p style="font-size: 0.85rem; color: var(--text-muted);">Digite um termo para pesquisar.</p>';
       return;
     }
 
-    resultsContainer.innerHTML = '<p id="search-status" style="font-size: 0.85rem; color: var(--text-muted);">Pesquisando no documento...</p>';
+    resultsContainer.innerHTML = '<p style="font-size: 0.85rem; color: var(--text-muted);">Pesquisando no documento...</p>';
 
-    window.searchEngine.setDocument(this.pdfDoc);
-    const results = await window.searchEngine.search(query, (current, total) => {
-      const statusEl = document.getElementById('search-status');
-      if (statusEl) {
-        const pct = Math.round((current / total) * 100);
-        statusEl.textContent = `Pesquisando... (${pct}% - pág ${current} de ${total})`;
+    const results = [];
+    const numPages = this.pdfDoc.numPages;
+
+    for (let i = 1; i <= numPages; i++) {
+      const page = await this.pdfDoc.getPage(i);
+      const content = await page.getTextContent();
+      const pageText = content.items.map(it => it.str).join(' ');
+
+      const idx = pageText.toLowerCase().indexOf(query);
+      if (idx !== -1) {
+        const start = Math.max(0, idx - 40);
+        const end = Math.min(pageText.length, idx + query.length + 40);
+        const snippet = (start > 0 ? '...' : '') + pageText.substring(start, end) + (end < pageText.length ? '...' : '');
+
+        results.push({ pageNum: i, snippet: snippet });
       }
-    });
+    }
 
     if (results.length === 0) {
-      resultsContainer.innerHTML = '<p style="font-size: 0.85rem; color: var(--text-muted);">Nenhum resultado encontrado.</p>';
+      resultsContainer.innerHTML = `<p style="font-size: 0.85rem; color: var(--text-muted);">Nenhum resultado para "<strong>${query}</strong>".</p>`;
       return;
     }
 
-    resultsContainer.innerHTML = '';
+    resultsContainer.innerHTML = `<p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px;">Encontrado em ${results.length} página(s):</p>`;
 
     results.forEach(res => {
-      const item = document.createElement('div');
-      item.className = 'search-result-item';
-
-      // Highlight matching word in snippet
-      const highlightedSnippet = res.snippet.replace(
-        new RegExp(res.query, 'gi'),
-        match => `<mark>${match}</mark>`
-      );
-
-      item.innerHTML = `
-        <span class="search-result-page">Página ${res.pageNum}</span>
-        <div class="search-result-snippet">${highlightedSnippet}</div>
+      const card = document.createElement('div');
+      card.className = 'search-result-card';
+      card.innerHTML = `
+        <div class="search-result-page">Página ${res.pageNum}</div>
+        <div class="search-result-snippet">${this.highlightMatch(res.snippet, query)}</div>
       `;
-
-      item.addEventListener('click', () => {
+      card.addEventListener('click', () => {
         window.readerManager.goToPage(res.pageNum);
       });
-
-      resultsContainer.appendChild(item);
+      resultsContainer.appendChild(card);
     });
   }
 
+  highlightMatch(text, query) {
+    const regex = new RegExp(`(${query})`, 'gi');
+    return text.replace(regex, '<mark style="background:#fef08a; padding:1px 4px; border-radius:2px; font-weight:700;">$1</mark>');
+  }
+
+  // === BOOKMARKS ===
+
   setupBookmarkEvents() {
-    const btnAddBookmark = document.getElementById('btn-add-bookmark');
-    if (btnAddBookmark) {
-      btnAddBookmark.addEventListener('click', () => this.toggleCurrentPageBookmark());
+    const btnAdd = document.getElementById('btn-add-bookmark');
+    if (btnAdd) {
+      btnAdd.addEventListener('click', async () => {
+        if (!this.book || !window.readerManager) return;
+        const pageNum = window.readerManager.currentPage;
+
+        const bms = await window.dbManager.getBookmarksForBook(this.book.id);
+        if (bms.some(b => b.pageNum === pageNum)) {
+          window.app.showToast(`Página ${pageNum} já está marcada.`, 'info');
+          return;
+        }
+
+        await window.dbManager.saveBookmark({
+          bookId: this.book.id,
+          pageNum: pageNum,
+          title: `Página ${pageNum}`,
+          createdAt: new Date().toISOString()
+        });
+
+        window.app.showToast(`Marcador adicionado na Página ${pageNum}!`);
+        this.renderBookmarks();
+        this.renderThumbnails();
+      });
     }
-
-    const btnBookmarkBottom = document.getElementById('btn-bookmark-current');
-    if (btnBookmarkBottom) {
-      btnBookmarkBottom.addEventListener('click', () => this.toggleCurrentPageBookmark());
-    }
-  }
-
-  async toggleCurrentPageBookmark() {
-    if (!this.book || !window.readerManager) return;
-    const pageNum = window.readerManager.currentPage;
-    await this.togglePageBookmark(pageNum);
-  }
-
-  async togglePageBookmark(pageNum) {
-    if (!this.book) return;
-    const bookmarks = await window.dbManager.getBookmarksForBook(this.book.id);
-    const existing = bookmarks.find(b => b.pageNum === pageNum);
-
-    if (existing) {
-      await window.dbManager.deleteBookmark(existing.id);
-      window.app.showToast(`Página ${pageNum} desmarcada.`);
-    } else {
-      const bookmark = {
-        id: 'bm_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-        bookId: this.book.id,
-        pageNum: pageNum,
-        title: `Página ${pageNum}`,
-        createdAt: Date.now()
-      };
-      await window.dbManager.saveBookmark(bookmark);
-      window.app.showToast(`Página ${pageNum} marcada com sucesso!`);
-    }
-
-    this.renderThumbnails();
-    this.renderBookmarks();
-    this.updateBookmarkButtonState();
-  }
-
-  async updateBookmarkButtonState() {
-    const btnBookmark = document.getElementById('btn-bookmark-current');
-    if (!btnBookmark || !this.book || !window.readerManager) return;
-    const pageNum = window.readerManager.currentPage;
-    const bookmarks = await window.dbManager.getBookmarksForBook(this.book.id);
-    const isBookmarked = bookmarks.some(b => b.pageNum === pageNum);
-    btnBookmark.classList.toggle('active', isBookmarked);
-  }
-
-  async addCurrentPageBookmark() {
-    await this.toggleCurrentPageBookmark();
   }
 
   async renderBookmarks() {
@@ -320,44 +339,43 @@ class ReaderSidebarManager {
     const bookmarks = await window.dbManager.getBookmarksForBook(this.book.id);
 
     if (bookmarks.length === 0) {
-      container.innerHTML = '<p style="font-size: 0.85rem; color: var(--text-muted);">Nenhum marcador adicionado a este livro.</p>';
+      container.innerHTML = '<p style="font-size: 0.85rem; color: var(--text-muted);">Nenhum marcador criado ainda.</p>';
       return;
     }
 
+    bookmarks.sort((a, b) => a.pageNum - b.pageNum);
     container.innerHTML = '';
 
     bookmarks.forEach(bm => {
       const item = document.createElement('div');
       item.className = 'bookmark-item';
       item.innerHTML = `
-        <div class="bookmark-info">
-          <span class="bookmark-title">${bm.title}</span>
-          <span class="bookmark-page">Página ${bm.pageNum}</span>
+        <div class="bookmark-info" style="cursor: pointer; flex: 1;">
+          <span class="bookmark-title" style="font-weight: 600; color: var(--text-main);">${bm.title || `Página ${bm.pageNum}`}</span>
+          <span class="bookmark-page" style="color: var(--primary); font-size: 0.78rem; font-weight: 700; display: block; margin-top: 2px;">Pág ${bm.pageNum}</span>
         </div>
-        <button class="btn-delete-bm" style="color: var(--danger); font-size: 0.9rem;" title="Excluir">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        <button class="btn-delete-bookmark" style="color: var(--danger); padding: 4px;" title="Remover Marcador">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
         </button>
       `;
 
-      item.addEventListener('click', () => {
+      item.querySelector('.bookmark-info').addEventListener('click', () => {
         window.readerManager.goToPage(bm.pageNum);
       });
 
-      const btnDelete = item.querySelector('.btn-delete-bm');
-      btnDelete.addEventListener('click', async (e) => {
+      item.querySelector('.btn-delete-bookmark').addEventListener('click', async (e) => {
         e.stopPropagation();
         await window.dbManager.deleteBookmark(bm.id);
         this.renderBookmarks();
         this.renderThumbnails();
-        this.updateBookmarkButtonState();
-        window.app.showToast('Marcador excluído.');
+        window.app.showToast('Marcador removido.');
       });
 
       container.appendChild(item);
     });
-
-    this.updateBookmarkButtonState();
   }
+
+  // === HIGHLIGHTS & POPUP MODAL ===
 
   setupHighlightEvents() {
     const btnRefresh = document.getElementById('btn-refresh-highlights');
@@ -379,6 +397,92 @@ class ReaderSidebarManager {
     if (btnVerGrifosBottom) {
       btnVerGrifosBottom.addEventListener('click', () => this.toggleHighlightsPanel());
     }
+  }
+
+  setupHighlightDetailModalEvents() {
+    const modal = document.getElementById('modal-highlight-detail');
+    const btnClose = document.getElementById('btn-close-hl-detail');
+    const btnCopy = document.getElementById('btn-hl-detail-copy');
+    const btnNote = document.getElementById('btn-hl-detail-note');
+    const btnDelete = document.getElementById('btn-hl-detail-delete');
+
+    if (btnClose) {
+      btnClose.addEventListener('click', () => modal.classList.add('hidden'));
+    }
+
+    if (btnCopy) {
+      btnCopy.addEventListener('click', () => {
+        if (!this.currentDetailHl) return;
+        navigator.clipboard.writeText(this.currentDetailHl.text);
+        window.app.showToast('Texto do grifo copiado com sucesso!');
+      });
+    }
+
+    if (btnNote) {
+      btnNote.addEventListener('click', async () => {
+        if (!this.currentDetailHl) return;
+        const hl = this.currentDetailHl;
+        const currentNote = hl.note || '';
+        const newNote = await window.app.showPromptModal(
+          'Anotação do Trecho Grifado',
+          hl.text,
+          currentNote
+        );
+
+        if (newNote !== null) {
+          hl.note = newNote.trim();
+          await window.dbManager.saveHighlight(hl);
+          this.showHighlightDetailModal(hl);
+          this.renderHighlightsList();
+          this.renderNotesList();
+          this.updateNotesBadge();
+          window.app.showToast('Nota salva com sucesso!');
+        }
+      });
+    }
+
+    if (btnDelete) {
+      btnDelete.addEventListener('click', async () => {
+        if (!this.currentDetailHl) return;
+        const hlId = this.currentDetailHl.id;
+        await window.dbManager.deleteHighlight(hlId);
+        modal.classList.add('hidden');
+        this.currentDetailHl = null;
+        this.renderHighlightsList();
+        this.renderNotesList();
+        this.updateNotesBadge();
+        window.readerManager.renderCurrentPage();
+        window.app.showToast('Marcação removida com sucesso!');
+      });
+    }
+  }
+
+  showHighlightDetailModal(hl) {
+    this.currentDetailHl = hl;
+    const modal = document.getElementById('modal-highlight-detail');
+    if (!modal) return;
+
+    const colorBadge = document.getElementById('hl-detail-color-badge');
+    const pageBadge = document.getElementById('hl-detail-page-badge');
+    const fullTextEl = document.getElementById('hl-detail-full-text');
+    const noteContainer = document.getElementById('hl-detail-note-container');
+    const noteTextEl = document.getElementById('hl-detail-note-text');
+    const noteBtnLabel = document.getElementById('btn-hl-detail-note-label');
+
+    if (colorBadge) colorBadge.style.background = hl.color || '#fef08a';
+    if (pageBadge) pageBadge.textContent = `Página ${hl.pageNum}`;
+    if (fullTextEl) fullTextEl.textContent = hl.text;
+
+    if (hl.note && hl.note.trim()) {
+      if (noteContainer) noteContainer.classList.remove('hidden');
+      if (noteTextEl) noteTextEl.textContent = hl.note;
+      if (noteBtnLabel) noteBtnLabel.textContent = 'Editar Nota';
+    } else {
+      if (noteContainer) noteContainer.classList.add('hidden');
+      if (noteBtnLabel) noteBtnLabel.textContent = 'Adicionar Nota';
+    }
+
+    modal.classList.remove('hidden');
   }
 
   toggleHighlightsPanel() {
@@ -415,6 +519,8 @@ class ReaderSidebarManager {
         await window.dbManager.deleteHighlight(hl.id);
       }
       this.renderHighlightsList();
+      this.renderNotesList();
+      this.updateNotesBadge();
       window.readerManager.renderCurrentPage();
       window.app.showToast('Todos os grifos foram excluídos!');
     }
@@ -454,11 +560,15 @@ class ReaderSidebarManager {
       item.style.flexDirection = 'column';
       item.style.alignItems = 'stretch';
       item.style.borderLeft = `4px solid ${hl.color || '#fff1a8'}`;
+      item.style.cursor = 'pointer';
       item.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
-          <div class="bookmark-info" style="cursor: pointer; flex: 1;">
+          <div class="bookmark-info" style="flex: 1;">
             <span class="bookmark-title" style="font-weight: 600; color: var(--text-main); line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">"${hl.text}"</span>
-            <span class="bookmark-page" style="color: var(--primary); font-size: 0.78rem; font-weight: 700; margin-top: 4px; display: block;">Página ${hl.pageNum}</span>
+            <div style="display: flex; gap: 6px; align-items: center; margin-top: 4px;">
+              <span class="bookmark-page" style="color: var(--primary); font-size: 0.78rem; font-weight: 700;">Página ${hl.pageNum}</span>
+              <span style="font-size: 0.72rem; color: var(--text-muted); background: var(--bg-surface); padding: 1px 6px; border-radius: 4px;">🔍 Ver Detalhes</span>
+            </div>
           </div>
           <div style="display: flex; gap: 2px; align-items: center;">
             <button class="btn-note-hl" style="color: var(--primary); font-size: 0.85rem; padding: 4px;" title="Adicionar / Editar Nota">
@@ -482,6 +592,7 @@ class ReaderSidebarManager {
       item.addEventListener('click', (e) => {
         if (!e.target.closest('button')) {
           window.readerManager.goToPage(hl.pageNum);
+          this.showHighlightDetailModal(hl);
         }
       });
 
@@ -489,11 +600,17 @@ class ReaderSidebarManager {
       btnNote.addEventListener('click', async (e) => {
         e.stopPropagation();
         const currentNote = hl.note || '';
-        const newNote = prompt('Digite a nota/comentário para este grifo:', currentNote);
+        const newNote = await window.app.showPromptModal(
+          'Editar Anotação do Grifo',
+          hl.text,
+          currentNote
+        );
         if (newNote !== null) {
           hl.note = newNote.trim();
           await window.dbManager.saveHighlight(hl);
           this.renderHighlightsList();
+          this.renderNotesList();
+          this.updateNotesBadge();
           window.app.showToast('Nota salva com sucesso!');
         }
       });
@@ -510,11 +627,147 @@ class ReaderSidebarManager {
         e.stopPropagation();
         await window.dbManager.deleteHighlight(hl.id);
         this.renderHighlightsList();
+        this.renderNotesList();
+        this.updateNotesBadge();
         window.readerManager.renderCurrentPage();
         window.app.showToast('Grifo removido.');
       });
 
       container.appendChild(item);
+    });
+  }
+
+  // === NOTES TAB (Anotações do Livro) ===
+
+  setupNotesEvents() {
+    const btnRefresh = document.getElementById('btn-refresh-notes');
+    if (btnRefresh) {
+      btnRefresh.addEventListener('click', () => this.renderNotesList());
+    }
+
+    const btnCopyAll = document.getElementById('btn-copy-all-notes');
+    if (btnCopyAll) {
+      btnCopyAll.addEventListener('click', () => this.copyAllNotes());
+    }
+  }
+
+  async copyAllNotes() {
+    if (!this.book) return;
+    const highlights = await window.dbManager.getHighlightsForBook(this.book.id);
+    const notes = highlights.filter(h => h.note && h.note.trim());
+
+    if (notes.length === 0) {
+      window.app.showToast('Nenhuma nota para copiar.', 'info');
+      return;
+    }
+
+    notes.sort((a, b) => a.pageNum - b.pageNum);
+    const text = notes.map((n, idx) => `[NOTA ${idx + 1} - Página ${n.pageNum}]\n"${n.note}"\n(Referência: "${n.text}")`).join('\n\n');
+    navigator.clipboard.writeText(text);
+    window.app.showToast(`Todas as ${notes.length} notas foram copiadas!`);
+  }
+
+  async renderNotesList() {
+    const container = document.getElementById('notes-list');
+    if (!container || !this.book) return;
+
+    const highlights = await window.dbManager.getHighlightsForBook(this.book.id);
+    const notes = highlights.filter(h => h.note && h.note.trim());
+
+    this.updateNotesBadge();
+
+    if (notes.length === 0) {
+      container.innerHTML = `
+        <div style="text-align: center; padding: 24px 12px; color: var(--text-muted);">
+          <div style="font-size: 2rem; margin-bottom: 8px;">📝</div>
+          <p style="font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Nenhuma nota criada ainda</p>
+          <p style="font-size: 0.75rem;">Clique em qualquer grifo do texto para adicionar comentários e notas.</p>
+        </div>
+      `;
+      return;
+    }
+
+    notes.sort((a, b) => a.pageNum - b.pageNum);
+    container.innerHTML = '';
+
+    notes.forEach(hl => {
+      const card = document.createElement('div');
+      card.className = 'bookmark-item';
+      card.style.flexDirection = 'column';
+      card.style.alignItems = 'stretch';
+      card.style.borderLeft = '4px solid #3b82f6';
+      card.style.background = 'var(--bg-card)';
+      card.style.cursor = 'pointer';
+
+      card.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+          <div style="flex: 1;">
+            <div style="font-size: 0.88rem; font-weight: 700; color: var(--text-main); margin-bottom: 6px; line-height: 1.4;">
+              📝 ${hl.note}
+            </div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); font-style: italic; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 6px; background: var(--bg-surface); padding: 4px 8px; border-radius: 4px;">
+              "${hl.text}"
+            </div>
+            <span style="font-size: 0.75rem; font-weight: 700; color: var(--primary);">Página ${hl.pageNum}</span>
+          </div>
+          <div style="display: flex; gap: 2px; align-items: center;">
+            <button class="btn-edit-note" style="color: var(--primary); font-size: 0.85rem; padding: 4px;" title="Editar Nota">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+            </button>
+            <button class="btn-copy-note" style="color: var(--text-muted); font-size: 0.85rem; padding: 4px;" title="Copiar Nota">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            </button>
+            <button class="btn-delete-note" style="color: var(--danger); font-size: 0.85rem; padding: 4px;" title="Remover Nota">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            </button>
+          </div>
+        </div>
+      `;
+
+      card.addEventListener('click', (e) => {
+        if (!e.target.closest('button')) {
+          window.readerManager.goToPage(hl.pageNum);
+          this.showHighlightDetailModal(hl);
+        }
+      });
+
+      const btnEdit = card.querySelector('.btn-edit-note');
+      btnEdit.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const newNote = await window.app.showPromptModal(
+          'Editar Anotação',
+          hl.text,
+          hl.note
+        );
+        if (newNote !== null) {
+          hl.note = newNote.trim();
+          await window.dbManager.saveHighlight(hl);
+          this.renderNotesList();
+          this.renderHighlightsList();
+          this.updateNotesBadge();
+          window.app.showToast('Nota atualizada com sucesso!');
+        }
+      });
+
+      const btnCopy = card.querySelector('.btn-copy-note');
+      btnCopy.addEventListener('click', (e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(hl.note);
+        window.app.showToast('Nota copiada!');
+      });
+
+      const btnDelete = card.querySelector('.btn-delete-note');
+      btnDelete.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        hl.note = '';
+        await window.dbManager.saveHighlight(hl);
+        this.renderNotesList();
+        this.renderHighlightsList();
+        this.updateNotesBadge();
+        window.app.showToast('Nota removida.');
+      });
+
+      container.appendChild(card);
     });
   }
 }

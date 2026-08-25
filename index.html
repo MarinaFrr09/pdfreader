@@ -12,8 +12,13 @@
   <link rel="stylesheet" href="css/library.css">
   <link rel="stylesheet" href="css/reader.css">
 
-  <!-- PDF.js Library -->
+  <!-- PDF.js & PDF Tools Libraries -->
   <script src="lib/pdf.min.js"></script>
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+  <script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
 </head>
 <body>
 
@@ -23,6 +28,9 @@
   <!-- MAIN APP CONTAINER (Library View) -->
   <div id="library-view" class="app-container">
     
+    <!-- MOBILE SIDEBAR BACKDROP OVERLAY -->
+    <div id="mobile-sidebar-backdrop" class="mobile-sidebar-backdrop hidden"></div>
+
     <!-- LEFT SIDEBAR - Folders & Categories -->
     <aside class="library-sidebar">
       <div class="brand-header">
@@ -43,6 +51,37 @@
         </button>
       </div>
 
+      <!-- SECTION: FERRAMENTAS DE PDF -->
+      <div class="sidebar-section" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+        <div class="section-title">Ferramentas de PDF</div>
+        <div id="pdf-tools-nav" class="flex-col gap-1">
+          <div class="folder-item nav-tool-item" data-tool="all">
+            <div class="folder-left">
+              <span class="folder-icon" style="color: #8b5cf6;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+              </span>
+              <span class="folder-name">Todas as Ferramentas</span>
+            </div>
+          </div>
+          <div class="folder-item nav-tool-item" data-tool="compress">
+            <div class="folder-left">
+              <span class="folder-icon" style="color: #ef4444;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14.89V17a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2.11"></path><polyline points="7 9 12 14 17 9"></polyline><line x1="12" y1="14" x2="12" y2="3"></line></svg>
+              </span>
+              <span class="folder-name">Comprimir PDF</span>
+            </div>
+          </div>
+          <div class="folder-item nav-tool-item" data-tool="editor">
+            <div class="folder-left">
+              <span class="folder-icon" style="color: #f59e0b;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+              </span>
+              <span class="folder-name" style="font-weight: 700;">Editor Avançado</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="sidebar-bottom">
         <button id="btn-toggle-theme" class="theme-toggle-btn">
           <div class="flex items-center gap-2">
@@ -58,6 +97,9 @@
     <!-- MAIN LIBRARY CONTENT -->
     <main class="library-main">
       <header class="library-header">
+        <button id="btn-mobile-menu-toggle" class="btn-mobile-menu-toggle" title="Abrir Menu de Pastas">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
         <div class="header-title-group">
           <h1 id="current-folder-title">Todos os Livros</h1>
           <p>Gerencie seus e-books e documentos PDF organizados por pastas</p>
@@ -93,6 +135,16 @@
             <input type="text" id="library-search-input" placeholder="Pesquisar livro...">
           </div>
 
+          <button id="btn-toggle-multi-select" class="btn-secondary" title="Ativar Seleção Múltipla">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+            <span>Selecionar</span>
+          </button>
+
+          <button id="btn-empty-trash" class="btn-danger hidden" title="Esvaziar Lixeira Permanentemente">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            <span>Esvaziar Lixeira</span>
+          </button>
+
           <button id="btn-import-pdf" class="btn-primary">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
             <span>Adicionar Livro</span>
@@ -100,6 +152,36 @@
           <input type="file" id="pdf-file-input" accept="application/pdf" multiple style="display: none;">
         </div>
       </header>
+
+      <!-- MULTI-SELECT FLOATING ACTION BAR -->
+      <div id="multi-select-bar" class="multi-select-bar hidden">
+        <div class="multi-select-info">
+          <button id="btn-select-all-books" class="btn-secondary" style="padding: 6px 12px; font-size: 0.82rem;" title="Selecionar Todos os Livros Exibidos">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><polyline points="9 11 12 14 22 4"></polyline></svg>
+            <span id="select-all-label">Selecionar Todos</span>
+          </button>
+          <span id="selected-count-badge" class="badge-count">0 selecionados</span>
+        </div>
+
+        <div class="multi-select-actions">
+          <button id="btn-trash-selected" class="btn-danger-light hidden">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            <span>Mover Selecionados para Lixeira</span>
+          </button>
+
+          <button id="btn-restore-selected" class="btn-success-light hidden">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+            <span>Restaurar Selecionados</span>
+          </button>
+
+          <button id="btn-delete-selected-permanent" class="btn-danger hidden">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            <span>Excluir Definitivamente</span>
+          </button>
+
+          <button id="btn-cancel-multi-select" class="btn-secondary">Cancelar</button>
+        </div>
+      </div>
 
       <section class="library-content">
         <!-- Book Cards Grid -->
@@ -119,6 +201,485 @@
           <button onclick="document.getElementById('pdf-file-input').click()" class="btn-primary" style="margin-top: 8px;">
             Selecionar Arquivos PDF
           </button>
+        </div>
+      </section>
+
+      <!-- PDF TOOLS DASHBOARD & WORKSPACE VIEW -->
+      <section id="pdf-tools-view" class="pdf-tools-view hidden">
+        <header class="tools-header">
+          <div class="header-title-group">
+            <h1 id="tools-title">Ferramentas de PDF</h1>
+            <p id="tools-subtitle">Comprima, converta e edite seus documentos PDF com segurança no navegador</p>
+          </div>
+          <button id="btn-back-to-library" class="btn-secondary" style="display: flex; align-items: center; gap: 6px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            <span>Voltar para Biblioteca</span>
+          </button>
+        </header>
+
+        <!-- DASHBOARD GRID VIEW -->
+        <div id="tools-dashboard" class="tools-dashboard-content">
+          <!-- COMPRIMIR SECTION -->
+          <div class="tools-category-block">
+            <h2 class="category-header-title text-danger">COMPRIMIR PDF</h2>
+            <div class="tools-grid">
+              <div class="tool-card tool-card-featured" data-action="compress">
+                <div class="tool-card-icon icon-compress">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14.89V17a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2.11"></path><polyline points="7 9 12 14 17 9"></polyline><line x1="12" y1="14" x2="12" y2="3"></line></svg>
+                </div>
+                <div class="tool-card-body">
+                  <h3>Comprimir PDF</h3>
+                  <p>Diminua o tamanho do seu arquivo PDF mantendo a máxima qualidade</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- CONVERTER EM PDF SECTION -->
+          <div class="tools-category-block" style="margin-top: 24px;">
+            <h2 class="category-header-title text-primary">CONVERTER EM PDF</h2>
+            <div class="tools-grid">
+              <div class="tool-card" data-action="jpg-to-pdf">
+                <div class="tool-card-icon icon-jpg">🖼️</div>
+                <div class="tool-card-body">
+                  <h3>JPG para PDF</h3>
+                  <p>Converte imagens JPG, PNG ou WEBP em documento PDF</p>
+                </div>
+              </div>
+
+              <div class="tool-card" data-action="word-to-pdf">
+                <div class="tool-card-icon icon-word">📄</div>
+                <div class="tool-card-body">
+                  <h3>WORD para PDF</h3>
+                  <p>Converte documentos Word (.docx) para o formato PDF</p>
+                </div>
+              </div>
+
+              <div class="tool-card" data-action="powerpoint-to-pdf">
+                <div class="tool-card-icon icon-ppt">📊</div>
+                <div class="tool-card-body">
+                  <h3>POWERPOINT para PDF</h3>
+                  <p>Converte apresentações de slides em documentos PDF</p>
+                </div>
+              </div>
+
+              <div class="tool-card" data-action="excel-to-pdf">
+                <div class="tool-card-icon icon-excel">📈</div>
+                <div class="tool-card-body">
+                  <h3>EXCEL para PDF</h3>
+                  <p>Converte planilhas Excel (.xlsx) e CSV em arquivos PDF</p>
+                </div>
+              </div>
+
+              <div class="tool-card" data-action="html-to-pdf">
+                <div class="tool-card-icon icon-html">🌐</div>
+                <div class="tool-card-body">
+                  <h3>HTML para PDF</h3>
+                  <p>Transforma páginas web e código HTML em documentos PDF</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- CONVERTER DE PDF SECTION -->
+          <div class="tools-category-block" style="margin-top: 24px;">
+            <h2 class="category-header-title text-success">CONVERTER DE PDF</h2>
+            <div class="tools-grid">
+              <div class="tool-card" data-action="pdf-to-jpg">
+                <div class="tool-card-icon icon-jpg">🖼️</div>
+                <div class="tool-card-body">
+                  <h3>PDF para JPG</h3>
+                  <p>Extrai todas as páginas do PDF como imagens JPG em alta resolução</p>
+                </div>
+              </div>
+
+              <div class="tool-card" data-action="pdf-to-word">
+                <div class="tool-card-icon icon-word">📄</div>
+                <div class="tool-card-body">
+                  <h3>PDF para WORD</h3>
+                  <p>Extrai e converte o texto do seu PDF em documento Word (.docx)</p>
+                </div>
+              </div>
+
+              <div class="tool-card" data-action="pdf-to-powerpoint">
+                <div class="tool-card-icon icon-ppt">📊</div>
+                <div class="tool-card-body">
+                  <h3>PDF para POWERPOINT</h3>
+                  <p>Converte as páginas do seu PDF em slides editáveis</p>
+                </div>
+              </div>
+
+              <div class="tool-card" data-action="pdf-to-excel">
+                <div class="tool-card-icon icon-excel">📈</div>
+                <div class="tool-card-body">
+                  <h3>PDF para EXCEL</h3>
+                  <p>Extrai tabelas de dados do PDF para planilha Excel (.xlsx)</p>
+                </div>
+              </div>
+
+              <div class="tool-card" data-action="pdf-to-pdfa">
+                <div class="tool-card-icon icon-pdfa">🔒</div>
+                <div class="tool-card-body">
+                  <h3>PDF para PDF/A</h3>
+                  <p>Transforma seu PDF no padrão ISO de preservação digital PDF/A</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TOOL WORKSPACE (UPLOAD & CONVERT AREA) -->
+        <div id="tool-workspace" class="tool-workspace hidden" style="padding: 24px 36px;">
+          <button id="btn-back-to-tools-dashboard" class="btn-secondary" style="display: flex; align-items: center; gap: 6px; margin-bottom: 16px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            <span>Voltar para Seleção de Ferramentas</span>
+          </button>
+
+          <div class="workspace-card" style="background: var(--bg-card); border-radius: var(--radius-lg); padding: 32px; border: 1px solid var(--border-color); box-shadow: var(--shadow-md);">
+            <div class="workspace-header" style="margin-bottom: 20px;">
+              <h2 id="active-tool-title" style="font-size: 1.4rem; font-weight: 700;">Comprimir PDF</h2>
+              <p id="active-tool-description" style="color: var(--text-muted); font-size: 0.9rem;">Selecione seu arquivo PDF para reduzir o tamanho</p>
+            </div>
+
+            <!-- DRAG & DROP ZONE -->
+            <div id="tool-dropzone" class="tool-dropzone" style="border: 2px dashed var(--border-color); border-radius: var(--radius-lg); padding: 40px; text-align: center; background: var(--bg-surface); cursor: pointer; transition: all 0.2s ease;">
+              <div class="dropzone-icon" style="color: var(--primary); margin-bottom: 12px;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+              </div>
+              <p class="dropzone-main-text" style="font-weight: 600; font-size: 1.05rem; margin-bottom: 4px;">Arraste seu arquivo aqui ou clique para selecionar</p>
+              <span class="dropzone-sub-text" id="tool-file-types-hint" style="color: var(--text-muted); font-size: 0.85rem; display: block; margin-bottom: 16px;">Arquivos aceitos: .pdf</span>
+              <button id="btn-tool-select-file" class="btn-primary" style="margin: 0 auto;">Selecionar Arquivo</button>
+              <input type="file" id="tool-file-input" class="hidden" style="display: none;" multiple>
+            </div>
+
+            <!-- FILE PREVIEW & OPTIONS -->
+            <div id="tool-file-preview" class="tool-file-preview hidden">
+              <div class="preview-file-info" style="display: flex; align-items: center; justify-content: space-between; padding: 16px; background: var(--bg-surface); border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span class="file-icon" style="font-size: 1.8rem;">📄</span>
+                  <div>
+                    <div id="preview-file-name" style="font-weight: 700; font-size: 0.95rem;">documento.pdf</div>
+                    <div id="preview-file-size" style="font-size: 0.82rem; color: var(--text-muted);">2.4 MB</div>
+                  </div>
+                </div>
+                <button id="btn-tool-remove-file" class="btn-secondary" style="padding: 6px 12px; font-size: 0.82rem;" title="Remover Arquivo">Remover</button>
+              </div>
+
+              <!-- DYNAMIC OPTIONS FOR TOOL -->
+              <div id="tool-options-container" class="tool-options-container" style="margin-top: 20px;">
+                <!-- Options injected by JS -->
+              </div>
+
+              <!-- CONVERT BUTTON & PROGRESS -->
+              <div class="tool-action-bar" style="margin-top: 24px;">
+                <button id="btn-run-tool-action" class="btn-primary" style="padding: 12px 28px; font-size: 1rem; font-weight: 700; width: 100%; justify-content: center;">
+                  <span id="btn-run-tool-text">Processar e Converter Arquivo</span>
+                </button>
+              </div>
+
+              <!-- PROGRESS BAR -->
+              <div id="tool-progress-container" class="tool-progress-container hidden" style="margin-top: 16px;">
+                <div class="progress-bar-track" style="width: 100%; height: 10px; background: var(--border-color); border-radius: 999px; overflow: hidden;">
+                  <div id="tool-progress-bar-fill" class="progress-bar-fill" style="width: 0%; height: 100%; background: var(--primary); transition: width 0.3s ease;"></div>
+                </div>
+                <span id="tool-progress-text" style="font-size: 0.82rem; color: var(--text-muted); display: block; text-align: center; margin-top: 6px;">Processando: 0%</span>
+              </div>
+
+              <!-- RESULT DOWNLOAD CONTAINER -->
+              <div id="tool-result-container" class="tool-result-container hidden" style="margin-top: 24px; padding: 24px; background: var(--bg-surface); border-radius: var(--radius-md); border: 1px solid #10b981;">
+                <div class="result-success-badge" style="display: flex; align-items: center; gap: 10px; font-weight: 700; color: #10b981; margin-bottom: 16px;">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                  <span id="result-message-text">Processamento concluído com sucesso!</span>
+                </div>
+
+                <!-- LIVE CONVERTED DOCUMENT PREVIEW FRAME -->
+                <div id="tool-result-preview-container" class="tool-result-preview-container" style="margin-bottom: 20px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-card); overflow: hidden;">
+                  <div class="preview-header-bar" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--bg-sidebar); border-bottom: 1px solid var(--border-color); font-size: 0.85rem; font-weight: 700;">
+                    <span style="display: flex; align-items: center; gap: 6px;">👁️ Pré-visualização do Arquivo Convertido</span>
+                    <span id="result-preview-page-info" style="color: var(--text-muted); font-size: 0.78rem; font-weight: 500;">Visualização</span>
+                  </div>
+                  <div id="result-preview-body" class="result-preview-body" style="padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 240px; max-height: 480px; overflow: auto; background: var(--bg-main);">
+                    <!-- Live preview canvas or document container injected here -->
+                  </div>
+                </div>
+
+                <div class="result-buttons-group" style="display: flex; gap: 12px; flex-wrap: wrap;">
+                  <a id="btn-download-result" class="btn-primary" style="background-color: #10b981; border: none; text-decoration: none;" download="resultado.pdf">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    <span>Baixar Arquivo Convertido</span>
+                  </a>
+                  <button id="btn-save-result-to-library" class="btn-secondary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                    <span>Salvar na Minha Biblioteca</span>
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ADVANCED PDF EDITOR STUDIO VIEW -->
+      <section id="pdf-editor-view" class="pdf-editor-view hidden">
+        <!-- EDITOR TOP CONTROL BAR -->
+        <header class="editor-header" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 24px; background: var(--bg-sidebar); border-bottom: 1px solid var(--border-color); flex-wrap: wrap; gap: 12px;">
+          <div class="editor-header-left" style="display: flex; align-items: center; gap: 12px;">
+            <button id="btn-editor-back" class="btn-secondary" style="padding: 6px 12px; font-size: 0.82rem;" title="Voltar para Ferramentas">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+              <span>Voltar</span>
+            </button>
+            <div class="editor-title-badge" style="background: var(--bg-surface); padding: 4px 12px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+              <span id="editor-doc-title" style="font-weight: 700; font-size: 0.9rem;">Editor Avançado de PDF</span>
+            </div>
+          </div>
+
+          <!-- EDITOR PAGE & ZOOM NAVIGATION -->
+          <div class="editor-header-center" style="display: flex; align-items: center; gap: 8px;">
+            <button id="btn-editor-prev-page" class="btn-icon-square btn-secondary" style="width: 32px; height: 32px;" title="Página Anterior">◀</button>
+            <span id="editor-page-indicator" style="font-size: 0.85rem; font-weight: 600; min-width: 90px; text-align: center;">Página 1 de 1</span>
+            <button id="btn-editor-next-page" class="btn-icon-square btn-secondary" style="width: 32px; height: 32px;" title="Próxima Página">▶</button>
+
+            <div class="editor-divider" style="width: 1px; height: 20px; background: var(--border-color); margin: 0 8px;"></div>
+
+            <button id="btn-editor-zoom-out" class="btn-icon-square btn-secondary" style="width: 32px; height: 32px;" title="Reduzir Zoom">-</button>
+            <span id="editor-zoom-label" style="font-size: 0.85rem; font-weight: 600; min-width: 50px; text-align: center;">100%</span>
+            <button id="btn-editor-zoom-in" class="btn-icon-square btn-secondary" style="width: 32px; height: 32px;" title="Aumentar Zoom">+</button>
+          </div>
+
+          <!-- EDITOR ACTIONS (UNDO, CLEAR, SAVE, DOWNLOAD) -->
+          <div class="editor-header-right" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <button id="btn-editor-undo" class="btn-secondary" style="padding: 6px 12px; font-size: 0.82rem;" title="Desfazer">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+              <span>Desfazer</span>
+            </button>
+            <button id="btn-editor-clear" class="btn-danger-light" style="padding: 6px 12px; font-size: 0.82rem;" title="Limpar tudo na página">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+              <span>Limpar</span>
+            </button>
+            <button id="btn-editor-save-library" class="btn-secondary" style="padding: 6px 12px; font-size: 0.82rem;" title="Salvar diretamente na minha biblioteca">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+              <span>Salvar na Biblioteca</span>
+            </button>
+            <button id="btn-editor-download" class="btn-primary" style="padding: 6px 14px; font-size: 0.82rem;" title="Baixar PDF Editado">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              <span>Baixar PDF</span>
+            </button>
+          </div>
+        </header>
+
+        <!-- MAIN EDITOR WORKSPACE -->
+        <div class="editor-workspace-body" style="display: flex; flex: 1; overflow: hidden; position: relative;">
+          
+          <!-- LEFT FLOATING TOOLBAR PANEL -->
+          <!-- LEFT PRO STUDIO TOOLBAR PANEL -->
+          <aside class="editor-studio-toolbar">
+            
+            <!-- Section 1: Ferramentas de Escrita & Desenho -->
+            <div class="editor-toolbar-card">
+              <div class="editor-card-header">
+                <span class="editor-card-title">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path></svg>
+                  <span>Desenho & Escrita</span>
+                </span>
+              </div>
+              <div class="editor-tools-grid-3">
+                <button class="editor-tool-tile editor-tool-btn active" data-tool-mode="select" title="Modo Seleção e Movimento">
+                  <span class="editor-tool-tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"></path></svg></span>
+                  <span class="editor-tool-tile-label">Selecionar</span>
+                </button>
+                <button class="editor-tool-tile editor-tool-btn" data-tool-mode="pencil-fine" title="Lápis Fino">
+                  <span class="editor-tool-tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="2" x2="22" y2="6"></line><path d="M7.5 20.5L19 9l-4-4L3.5 16.5 2 22z"></path></svg></span>
+                  <span class="editor-tool-tile-label">Lápis</span>
+                </button>
+                <button class="editor-tool-tile editor-tool-btn" data-tool-mode="pen" title="Caneta Gel">
+                  <span class="editor-tool-tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path></svg></span>
+                  <span class="editor-tool-tile-label">Caneta</span>
+                </button>
+                <button class="editor-tool-tile editor-tool-btn" data-tool-mode="pencil-thick" title="Pincel Marcador">
+                  <span class="editor-tool-tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"></path><path d="M7.07 14.94l-3.53.88a1 1 0 0 0-.74.74l-.88 3.53a1 1 0 0 0 1.21 1.21l3.53-.88a1 1 0 0 0 .74-.74l.88-3.53"></path></svg></span>
+                  <span class="editor-tool-tile-label">Pincel</span>
+                </button>
+                <button class="editor-tool-tile editor-tool-btn" data-tool-mode="highlighter" title="Marca-Texto Livre">
+                  <span class="editor-tool-tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.42 9.21l-3.63-3.63L3 17.37V21h3.63L18.42 9.21z"></path></svg></span>
+                  <span class="editor-tool-tile-label">Marca-Texto</span>
+                </button>
+                <button class="editor-tool-tile editor-tool-btn" data-tool-mode="highlighter-line" title="Marca-Texto Linha Reta">
+                  <span class="editor-tool-tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="3" y1="12" x2="21" y2="12" stroke-linecap="round"></line></svg></span>
+                  <span class="editor-tool-tile-label">Grifar Linha</span>
+                </button>
+                <button class="editor-tool-tile editor-tool-btn" data-tool-mode="line" title="Linha Reta">
+                  <span class="editor-tool-tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="4" y1="20" x2="20" y2="4"></line></svg></span>
+                  <span class="editor-tool-tile-label">Linha</span>
+                </button>
+                <button class="editor-tool-tile editor-tool-btn" data-tool-mode="arrow" title="Seta Indicativa">
+                  <span class="editor-tool-tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></span>
+                  <span class="editor-tool-tile-label">Seta</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Section 2: Formas Geométricas -->
+            <div class="editor-toolbar-card">
+              <div class="editor-card-header">
+                <span class="editor-card-title">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 22 22 22"></polygon></svg>
+                  <span>Formas Geométricas</span>
+                </span>
+              </div>
+              <div class="editor-tools-grid-3">
+                <button class="editor-tool-tile editor-tool-btn" data-tool-mode="rect" title="Retângulo">
+                  <span class="editor-tool-tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect></svg></span>
+                  <span class="editor-tool-tile-label">Retângulo</span>
+                </button>
+                <button class="editor-tool-tile editor-tool-btn" data-tool-mode="circle" title="Círculo">
+                  <span class="editor-tool-tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"></circle></svg></span>
+                  <span class="editor-tool-tile-label">Círculo</span>
+                </button>
+                <button class="editor-tool-tile editor-tool-btn" data-tool-mode="triangle" title="Triângulo">
+                  <span class="editor-tool-tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3L2 21h20L12 3z"></path></svg></span>
+                  <span class="editor-tool-tile-label">Triângulo</span>
+                </button>
+                <button class="editor-tool-tile editor-tool-btn" data-tool-mode="star" title="Estrela">
+                  <span class="editor-tool-tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg></span>
+                  <span class="editor-tool-tile-label">Estrela</span>
+                </button>
+                <button class="editor-tool-tile editor-tool-btn" data-tool-mode="diamond" title="Losango">
+                  <span class="editor-tool-tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 22 12 12 22 2 12 12 2"></polygon></svg></span>
+                  <span class="editor-tool-tile-label">Losango</span>
+                </button>
+              </div>
+              <div style="margin-top: 8px;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.68rem; font-weight: 600; color: var(--text-muted); margin-bottom: 2px;">
+                  <span>Tamanho da Forma</span>
+                  <span id="editor-shape-size-val">80px</span>
+                </div>
+                <input type="range" id="editor-shape-size" min="20" max="200" value="80" style="width: 100%; accent-color: var(--primary);">
+              </div>
+            </div>
+
+            <!-- Section 3: Texto & Notas -->
+            <div class="editor-toolbar-card">
+              <div class="editor-card-header">
+                <span class="editor-card-title">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="12" y1="4" x2="12" y2="20"></line></svg>
+                  <span>Texto & Anotações</span>
+                </span>
+              </div>
+              <div class="editor-tools-grid-2">
+                <button class="editor-tool-tile editor-tool-btn" data-tool-mode="text" title="Inserir Caixa de Texto">
+                  <span class="editor-tool-tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="12" y1="4" x2="12" y2="20"></line><line x1="9" y1="20" x2="15" y2="20"></line></svg></span>
+                  <span class="editor-tool-tile-label">Texto</span>
+                </button>
+                <button class="editor-tool-tile editor-tool-btn" data-tool-mode="note" title="Inserir Post-it Adesivo">
+                  <span class="editor-tool-tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line></svg></span>
+                  <span class="editor-tool-tile-label">Nota Adesiva</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Section 4: Borrachas -->
+            <div class="editor-toolbar-card">
+              <div class="editor-card-header">
+                <span class="editor-card-title">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 20H7L3 16C2 15 2 13 3 12L13 2C14 1 16 1 17 2L21 6C22 7 22 9 21 10L12 19"></path></svg>
+                  <span>Borracha & Limpeza</span>
+                </span>
+              </div>
+              <div class="editor-tools-grid-2">
+                <button class="editor-tool-tile editor-tool-btn" data-tool-mode="eraser-free" title="Borracha Livre (Apagar Traços)">
+                  <span class="editor-tool-tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 20H7L3 16C2 15 2 13 3 12L13 2C14 1 16 1 17 2L21 6C22 7 22 9 21 10L12 19"></path></svg></span>
+                  <span class="editor-tool-tile-label">Borracha Livre</span>
+                </button>
+                <button class="editor-tool-tile editor-tool-btn" data-tool-mode="eraser-all" title="Limpar Todos os Desenhos da Página" style="border-color: rgba(239, 68, 68, 0.3); color: #ef4444;">
+                  <span class="editor-tool-tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></span>
+                  <span class="editor-tool-tile-label">Apagar Tudo</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Section 5: Paleta de Cores Profissional -->
+            <div class="editor-toolbar-card">
+              <div class="editor-card-header">
+                <span class="editor-card-title">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a10 10 0 0 0 0 20"></path></svg>
+                  <span>Cores & Tintas</span>
+                </span>
+              </div>
+              <div class="editor-color-grid">
+                <div class="editor-color-swatch-pro editor-color-swatch" data-color="#000000" style="background: #000000;" title="Preto"></div>
+                <div class="editor-color-swatch-pro editor-color-swatch active" data-color="#ef4444" style="background: #ef4444;" title="Vermelho"></div>
+                <div class="editor-color-swatch-pro editor-color-swatch" data-color="#f97316" style="background: #f97316;" title="Laranja"></div>
+                <div class="editor-color-swatch-pro editor-color-swatch" data-color="#eab308" style="background: #eab308;" title="Amarelo"></div>
+                <div class="editor-color-swatch-pro editor-color-swatch" data-color="#22c55e" style="background: #22c55e;" title="Verde"></div>
+                <div class="editor-color-swatch-pro editor-color-swatch" data-color="#3b82f6" style="background: #3b82f6;" title="Azul"></div>
+                <div class="editor-color-swatch-pro editor-color-swatch" data-color="#8b5cf6" style="background: #8b5cf6;" title="Roxo"></div>
+                <div class="editor-color-swatch-pro editor-color-swatch" data-color="#ec4899" style="background: #ec4899;" title="Rosa"></div>
+                <div class="editor-color-swatch-pro editor-color-swatch" data-color="#ffffff" style="background: #ffffff; border: 1px solid #cbd5e1;" title="Branco"></div>
+                <div class="editor-color-swatch-pro editor-color-swatch" data-color="#64748b" style="background: #64748b;" title="Cinza"></div>
+              </div>
+
+              <!-- Custom Color Picker Row -->
+              <div class="editor-custom-color-row" onclick="document.getElementById('editor-color-picker').click()">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div class="editor-custom-color-input-wrap">
+                    <input type="color" id="editor-color-picker" value="#ef4444">
+                  </div>
+                  <span style="font-size: 0.72rem; font-weight: 600; color: var(--text-main);">Personalizar Cor</span>
+                </div>
+                <span id="editor-color-hex-badge" style="font-size: 0.68rem; font-weight: 700; font-family: monospace; color: var(--text-muted); background: var(--bg-card); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-color);">#EF4444</span>
+              </div>
+            </div>
+
+            <!-- Section 6: Espessura, Opacidade & Pré-visualização ao Vivo -->
+            <div class="editor-toolbar-card" style="margin-bottom: 20px;">
+              <div class="editor-card-header">
+                <span class="editor-card-title">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="12" x2="20" y2="12"></line></svg>
+                  <span>Traço & Opacidade</span>
+                </span>
+              </div>
+
+              <div style="margin-bottom: 8px;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.68rem; font-weight: 600; color: var(--text-muted); margin-bottom: 2px;">
+                  <span>Espessura do Traço</span>
+                  <span id="editor-stroke-value" style="font-weight: 700; color: var(--primary);">4px</span>
+                </div>
+                <input type="range" id="editor-stroke-slider" min="1" max="40" value="4" style="width: 100%; accent-color: var(--primary);">
+              </div>
+
+              <div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.68rem; font-weight: 600; color: var(--text-muted); margin-bottom: 2px;">
+                  <span>Opacidade da Tinta</span>
+                  <span id="editor-opacity-value" style="font-weight: 700; color: var(--primary);">100%</span>
+                </div>
+                <input type="range" id="editor-opacity-slider" min="10" max="100" value="100" style="width: 100%; accent-color: var(--primary);">
+              </div>
+
+              <!-- LIVE BRUSH PREVIEW BOX -->
+              <div class="editor-brush-preview-box" title="Amostra em Tempo Real do Traço">
+                <div id="editor-brush-preview-line" class="editor-brush-preview-line"></div>
+              </div>
+            </div>
+
+          </aside>
+
+          <!-- CENTER VIEWPORT CANVAS SHEET -->
+          <main class="editor-canvas-viewport" style="flex: 1; display: flex; align-items: center; justify-content: center; overflow: auto; padding: 24px; background: var(--bg-main); position: relative;">
+            <div id="editor-empty-upload" class="editor-empty-upload" style="text-align: center; max-width: 420px; background: var(--bg-card); padding: 40px 32px; border-radius: var(--radius-lg); border: 1px solid var(--border-color); box-shadow: var(--shadow-md);">
+              <div style="font-size: 3rem; margin-bottom: 12px;">✏️</div>
+              <h2 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 6px;">Selecione um PDF para Editar</h2>
+              <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 20px;">Abra um arquivo do seu computador para começar a desenhar, adicionar textos e notas</p>
+              <button id="btn-editor-open-file" class="btn-primary" style="margin: 0 auto;">Abrir Arquivo PDF</button>
+              <input type="file" id="editor-file-input" accept="application/pdf" class="hidden" style="display: none;">
+            </div>
+
+            <div id="editor-page-wrapper" class="editor-page-wrapper hidden" style="position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.2); background: white; border-radius: 4px; overflow: hidden;">
+              <canvas id="editor-pdf-canvas" class="editor-pdf-canvas" style="display: block;"></canvas>
+              <canvas id="editor-drawing-canvas" class="editor-drawing-canvas" style="position: absolute; top: 0; left: 0; pointer-events: auto; z-index: 2;"></canvas>
+              <div id="editor-elements-overlay" class="editor-elements-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3;"></div>
+            </div>
+          </main>
         </div>
       </section>
     </main>
@@ -141,6 +702,96 @@
           <button type="submit" class="btn-primary">Criar Pasta</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- CUSTOM FOLDER CONTEXT MENU (Right Click) -->
+  <div id="folder-context-menu" class="custom-context-menu hidden">
+    <div class="context-menu-item" id="ctx-rename-folder">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+      <span>Renomear Pasta</span>
+    </div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item item-danger" id="ctx-delete-folder">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+      <span>Excluir Pasta</span>
+    </div>
+  </div>
+
+  <!-- CUSTOM ANNOTATION / NOTE MODAL -->
+  <div id="modal-annotation" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 480px; width: 90vw; padding: 24px; border-radius: var(--radius-lg); background: var(--bg-card); border: 1px solid var(--border-color); box-shadow: 0 20px 40px rgba(0,0,0,0.3);">
+      <div class="modal-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--primary-light); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">📝</div>
+          <h3 id="annotation-modal-title" style="font-size: 1.15rem; font-weight: 700; color: var(--text-main);">Anotação / Comentário</h3>
+        </div>
+        <button id="btn-close-annotation-modal" class="btn-icon-square btn-secondary" style="border: none; background: transparent; font-size: 1.2rem; cursor: pointer;">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <p id="annotation-excerpt-preview" style="font-size: 0.85rem; color: var(--text-muted); font-style: italic; background: var(--bg-surface); padding: 10px 14px; border-radius: var(--radius-md); border-left: 3px solid var(--primary); margin-bottom: 16px; word-break: break-word; max-height: 80px; overflow-y: auto;"></p>
+
+        <div class="form-group">
+          <label for="annotation-text-input" style="font-size: 0.85rem; font-weight: 600; color: var(--text-main); margin-bottom: 6px; display: block;">Sua Anotação:</label>
+          <textarea id="annotation-text-input" rows="4" style="width: 100%; padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-main); font-family: inherit; font-size: 0.9rem; resize: vertical; outline: none; transition: border-color 0.2s ease;" placeholder="Digite seu comentário ou anotação aqui..."></textarea>
+        </div>
+      </div>
+
+      <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
+        <button id="btn-cancel-annotation" class="btn-secondary" style="padding: 9px 18px;">Cancelar</button>
+        <button id="btn-save-annotation" class="btn-primary" style="padding: 9px 20px; font-weight: 700;">Salvar Anotação</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- HIGHLIGHT DETAIL POPUP MODAL -->
+  <div id="modal-highlight-detail" class="modal-overlay hidden" style="z-index: 1200;">
+    <div class="modal-content" style="max-width: 520px; width: 92vw; padding: 24px; border-radius: var(--radius-lg); background: var(--bg-card); border: 1px solid var(--border-color); box-shadow: 0 24px 48px rgba(0,0,0,0.35);">
+      <div class="modal-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color);">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div id="hl-detail-color-badge" style="width: 20px; height: 20px; border-radius: 50%; border: 2px solid rgba(0,0,0,0.15); background: #fef08a;"></div>
+          <div>
+            <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin: 0;">Trecho Grifado</h3>
+            <span id="hl-detail-page-badge" style="font-size: 0.78rem; font-weight: 600; color: var(--primary);">Página 1</span>
+          </div>
+        </div>
+        <button id="btn-close-hl-detail" class="btn-icon-square btn-secondary" style="border: none; background: transparent; font-size: 1.2rem; cursor: pointer;">✕</button>
+      </div>
+
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px;">
+        <!-- Full Highlighted Text Box -->
+        <div>
+          <label style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: block;">Texto Completo:</label>
+          <div id="hl-detail-full-text" style="font-size: 0.95rem; line-height: 1.6; color: var(--text-main); background: var(--bg-surface); padding: 14px 16px; border-radius: var(--radius-md); border-left: 4px solid var(--primary); max-height: 180px; overflow-y: auto; word-break: break-word; user-select: text;">
+          </div>
+        </div>
+
+        <!-- Note Section (If present) -->
+        <div id="hl-detail-note-container" class="hidden">
+          <label style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: block;">Anotação / Nota:</label>
+          <div id="hl-detail-note-text" style="font-size: 0.88rem; line-height: 1.5; color: var(--text-main); background: rgba(59, 130, 246, 0.1); border-left: 4px solid #3b82f6; padding: 12px 14px; border-radius: var(--radius-md); word-break: break-word;">
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border-color); flex-wrap: wrap; gap: 8px;">
+        <button id="btn-hl-detail-delete" class="btn-danger-light" style="padding: 8px 14px; font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          <span>Remover Grifo</span>
+        </button>
+
+        <div style="display: flex; gap: 8px;">
+          <button id="btn-hl-detail-copy" class="btn-secondary" style="padding: 8px 14px; font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            <span>Copiar Texto</span>
+          </button>
+          <button id="btn-hl-detail-note" class="btn-primary" style="padding: 8px 16px; font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+            <span id="btn-hl-detail-note-label">Adicionar Nota</span>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -168,6 +819,10 @@
           <button class="tab-btn" data-tab="highlights" title="Ver partes grifadas do texto">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
             Grifos
+          </button>
+          <button class="tab-btn" data-tab="notes" title="Ver anotações e notas do livro">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+            Notas
           </button>
         </div>
 
@@ -220,18 +875,47 @@
             <!-- Highlighted items rendered dynamically -->
           </div>
         </div>
+
+        <!-- Panel 5: Notes / Anotações -->
+        <div id="panel-notes" class="sidebar-panel hidden">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <h4 style="font-size: 0.85rem; font-weight: 700; margin: 0;">Minhas Notas</h4>
+              <span id="notes-count-badge" class="badge-count" style="font-size: 0.72rem; padding: 2px 6px;">0</span>
+            </div>
+            <div style="display: flex; gap: 4px; align-items: center;">
+              <button id="btn-copy-all-notes" class="toolbar-btn-glass" style="padding: 4px 6px; font-size: 0.75rem;" title="Copiar Todas as Notas">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              </button>
+              <button id="btn-refresh-notes" class="toolbar-btn-glass" style="padding: 4px 6px; font-size: 0.75rem;" title="Atualizar Lista de Notas">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+              </button>
+            </div>
+          </div>
+          <div id="notes-list" class="flex-col gap-2">
+            <!-- Notes rendered dynamically -->
+          </div>
+        </div>
       </aside>
 
       <!-- HORIZONTAL VIEWPORT CONTAINER -->
       <div id="reader-viewport" class="reader-viewport">
+        <!-- SIDE PAGE TURN ARROW BUTTONS (Fade in on edge hover) -->
+        <button id="edge-btn-prev" class="edge-page-turn-btn edge-btn-left" title="Página Anterior">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </button>
+        <button id="edge-btn-next" class="edge-page-turn-btn edge-btn-right" title="Próxima Página">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
         
         <!-- PDF Page Canvas Container (Single or Dual Page Spread) -->
         <div id="pdf-page-container" class="page-container-wrapper spread-mode">
           <!-- Canvas + Text Layer injected here dynamically -->
         </div>
+      </div>
 
-        <!-- BOTTOM FLOATING GLASSMOPHIC TOOLBAR -->
-        <div class="reader-bottom-bar">
+      <!-- BOTTOM FLOATING GLASSMOPHIC TOOLBAR -->
+      <div class="reader-bottom-bar">
           <button id="btn-close-reader" class="toolbar-btn-glass" title="Voltar à Biblioteca">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
             <span id="reader-book-title" style="max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Livro PDF</span>
@@ -366,17 +1050,6 @@
           <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 6px;">Escolha a cor principal aplicada para a marcação de texto.</p>
         </div>
 
-        <!-- Page Flip Animation Toggle Row -->
-        <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid var(--border-color);">
-          <div>
-            <span style="font-weight: 600; font-size: 0.9rem; display: block;">Animação de Páginas</span>
-            <span style="font-size: 0.78rem; color: var(--text-muted);">Ativar ou desativar a transição 3D ao virar páginas</span>
-          </div>
-          <button id="btn-toggle-animation-modal" class="btn-secondary" style="display: flex; align-items: center; gap: 6px;">
-            <span id="animation-toggle-label">Com Animação</span>
-          </button>
-        </div>
-
         <!-- Theme Toggle Row -->
         <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid var(--border-color);">
           <div>
@@ -402,6 +1075,8 @@
 <script src="js/reader.js?v=99"></script>
 <script src="js/sidebar.js?v=99"></script>
 <script src="js/text-select.js?v=99"></script>
+<script src="js/pdf-tools.js?v=99"></script>
+<script src="js/pdf-editor.js?v=99"></script>
 <script src="js/app.js?v=99"></script>
 
 </body>

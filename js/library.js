@@ -8,6 +8,9 @@ class LibraryManager {
     this.searchQuery = '';
     this.books = [];
     this.folders = [];
+    this.isMultiSelectActive = false;
+    this.selectedBookIds = new Set();
+    this.currentFilteredBooks = [];
   }
 
   async init() {
@@ -100,6 +103,165 @@ class LibraryManager {
         this.searchQuery = e.target.value.toLowerCase().trim();
         this.renderBooks();
       });
+    }
+
+    // Multi-Select & Batch Actions
+    const btnToggleMulti = document.getElementById('btn-toggle-multi-select');
+    if (btnToggleMulti) {
+      btnToggleMulti.addEventListener('click', () => this.toggleMultiSelect());
+    }
+
+    const btnCancelMulti = document.getElementById('btn-cancel-multi-select');
+    if (btnCancelMulti) {
+      btnCancelMulti.addEventListener('click', () => this.toggleMultiSelect(false));
+    }
+
+    const btnEmptyTrash = document.getElementById('btn-empty-trash');
+    if (btnEmptyTrash) {
+      btnEmptyTrash.addEventListener('click', () => this.emptyTrash());
+    }
+
+    const btnSelectAll = document.getElementById('btn-select-all-books');
+    if (btnSelectAll) {
+      btnSelectAll.addEventListener('click', () => this.selectAllFilteredBooks());
+    }
+
+    const btnTrashSelected = document.getElementById('btn-trash-selected');
+    if (btnTrashSelected) {
+      btnTrashSelected.addEventListener('click', () => this.batchMoveToTrash());
+    }
+
+    const btnRestoreSelected = document.getElementById('btn-restore-selected');
+    if (btnRestoreSelected) {
+      btnRestoreSelected.addEventListener('click', () => this.batchRestore());
+    }
+
+    const btnDeletePermanent = document.getElementById('btn-delete-selected-permanent');
+    if (btnDeletePermanent) {
+      btnDeletePermanent.addEventListener('click', () => this.batchDeletePermanent());
+    }
+  }
+
+  toggleMultiSelect(forceState) {
+    this.isMultiSelectActive = forceState !== undefined ? forceState : !this.isMultiSelectActive;
+    if (!this.isMultiSelectActive) {
+      this.selectedBookIds.clear();
+    }
+
+    const btnToggle = document.getElementById('btn-toggle-multi-select');
+    const multiSelectBar = document.getElementById('multi-select-bar');
+
+    if (btnToggle) {
+      btnToggle.classList.toggle('active', this.isMultiSelectActive);
+    }
+    if (multiSelectBar) {
+      multiSelectBar.classList.toggle('hidden', !this.isMultiSelectActive);
+    }
+
+    this.updateMultiSelectBar();
+    this.renderBooks();
+  }
+
+  updateMultiSelectBar() {
+    const badge = document.getElementById('selected-count-badge');
+    const btnTrashSelected = document.getElementById('btn-trash-selected');
+    const btnRestoreSelected = document.getElementById('btn-restore-selected');
+    const btnDeletePermanent = document.getElementById('btn-delete-selected-permanent');
+    const isTrash = this.currentFolderId === 'trash';
+
+    if (badge) {
+      badge.textContent = `${this.selectedBookIds.size} selecionado(s)`;
+    }
+
+    if (btnTrashSelected) btnTrashSelected.classList.toggle('hidden', isTrash || this.selectedBookIds.size === 0);
+    if (btnRestoreSelected) btnRestoreSelected.classList.toggle('hidden', !isTrash || this.selectedBookIds.size === 0);
+    if (btnDeletePermanent) btnDeletePermanent.classList.toggle('hidden', !isTrash || this.selectedBookIds.size === 0);
+  }
+
+  selectAllFilteredBooks() {
+    if (!this.currentFilteredBooks || this.currentFilteredBooks.length === 0) return;
+    const allSelected = this.currentFilteredBooks.every(b => this.selectedBookIds.has(b.id));
+
+    if (allSelected) {
+      this.selectedBookIds.clear();
+    } else {
+      this.currentFilteredBooks.forEach(b => this.selectedBookIds.add(b.id));
+    }
+
+    const label = document.getElementById('select-all-label');
+    if (label) label.textContent = allSelected ? 'Selecionar Todos' : 'Desmarcar Todos';
+
+    this.updateMultiSelectBar();
+    this.renderBooks();
+  }
+
+  async emptyTrash() {
+    const trashBooks = this.books.filter(b => b.folderId === 'trash');
+    if (trashBooks.length === 0) {
+      window.app.showToast('A lixeira já está vazia.', 'info');
+      return;
+    }
+
+    if (confirm(`Tem certeza que deseja esvaziar a lixeira e apagar permanentemente ${trashBooks.length} livro(s)?`)) {
+      window.app.showToast('Esvaziando lixeira...', 'info');
+      for (const book of trashBooks) {
+        await window.dbManager.deleteBook(book.id);
+      }
+      window.app.showToast('Lixeira esvaziada com sucesso!');
+      await this.loadBooks();
+      this.render();
+    }
+  }
+
+  async batchMoveToTrash() {
+    if (this.selectedBookIds.size === 0) return;
+    const count = this.selectedBookIds.size;
+
+    for (const id of this.selectedBookIds) {
+      const book = this.books.find(b => b.id === id);
+      if (book) {
+        book.folderId = 'trash';
+        await window.dbManager.saveBook(book);
+      }
+    }
+
+    window.app.showToast(`${count} livro(s) movido(s) para a lixeira.`);
+    this.toggleMultiSelect(false);
+    await this.loadBooks();
+    this.render();
+  }
+
+  async batchRestore() {
+    if (this.selectedBookIds.size === 0) return;
+    const count = this.selectedBookIds.size;
+
+    for (const id of this.selectedBookIds) {
+      const book = this.books.find(b => b.id === id);
+      if (book) {
+        book.folderId = 'all';
+        await window.dbManager.saveBook(book);
+      }
+    }
+
+    window.app.showToast(`${count} livro(s) restaurado(s)!`);
+    this.toggleMultiSelect(false);
+    await this.loadBooks();
+    this.render();
+  }
+
+  async batchDeletePermanent() {
+    if (this.selectedBookIds.size === 0) return;
+    const count = this.selectedBookIds.size;
+
+    if (confirm(`Deseja excluir permanentemente ${count} livro(s) selecionado(s)? Esta ação não pode ser desfeita.`)) {
+      for (const id of this.selectedBookIds) {
+        await window.dbManager.deleteBook(id);
+      }
+
+      window.app.showToast(`${count} livro(s) excluído(s) permanentemente.`);
+      this.toggleMultiSelect(false);
+      await this.loadBooks();
+      this.render();
     }
   }
 
@@ -209,6 +371,21 @@ class LibraryManager {
     });
   }
 
+  showLibraryView() {
+    const libraryContent = document.querySelector('.library-content');
+    if (libraryContent) libraryContent.classList.remove('hidden');
+
+    const toolsView = document.getElementById('pdf-tools-view');
+    if (toolsView) toolsView.classList.add('hidden');
+
+    const editorView = document.getElementById('pdf-editor-view');
+    if (editorView) editorView.classList.add('hidden');
+
+    document.querySelectorAll('.nav-tool-item').forEach(el => {
+      el.classList.remove('active-tool');
+    });
+  }
+
   render() {
     this.renderFolders();
     this.renderBooks();
@@ -249,23 +426,102 @@ class LibraryManager {
 
       item.addEventListener('click', () => {
         this.currentFolderId = folder.id;
+        this.showLibraryView();
         this.render();
+      });
+
+      item.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.showFolderContextMenu(e, folder);
       });
 
       container.appendChild(item);
     });
   }
 
+  showFolderContextMenu(e, folder) {
+    const ctxMenu = document.getElementById('folder-context-menu');
+    if (!ctxMenu) return;
+
+    if (folder.isSystem || ['all', 'favorites', 'trash'].includes(folder.id)) {
+      window.app.showToast('Pastas padrão do sistema não podem ser alteradas.', 'info');
+      return;
+    }
+
+    const x = Math.min(e.clientX, window.innerWidth - 180);
+    const y = Math.min(e.clientY, window.innerHeight - 100);
+
+    ctxMenu.style.left = `${x}px`;
+    ctxMenu.style.top = `${y}px`;
+    ctxMenu.classList.remove('hidden');
+
+    const btnRename = document.getElementById('ctx-rename-folder');
+    const btnDelete = document.getElementById('ctx-delete-folder');
+
+    const newRename = btnRename.cloneNode(true);
+    const newDelete = btnDelete.cloneNode(true);
+
+    btnRename.parentNode.replaceChild(newRename, btnRename);
+    btnDelete.parentNode.replaceChild(newDelete, btnDelete);
+
+    newRename.addEventListener('click', async (evt) => {
+      evt.stopPropagation();
+      ctxMenu.classList.add('hidden');
+      const newName = await window.app.showPromptModal('Renomear Pasta', '', folder.name);
+      if (newName && newName.trim()) {
+        folder.name = newName.trim();
+        await window.dbManager.saveFolder(folder);
+        await this.loadFolders();
+        this.renderFolders();
+        this.renderBooks();
+        window.app.showToast(`Pasta renomeada para "${folder.name}".`);
+      }
+    });
+
+    newDelete.addEventListener('click', async (evt) => {
+      evt.stopPropagation();
+      ctxMenu.classList.add('hidden');
+      if (confirm(`Tem certeza que deseja excluir a pasta "${folder.name}"? Os livros continuarão salvos em "Todos os Livros".`)) {
+        await window.dbManager.deleteFolder(folder.id);
+        const folderBooks = this.books.filter(b => b.folderId === folder.id);
+        for (const book of folderBooks) {
+          book.folderId = 'all';
+          await window.dbManager.saveBook(book);
+        }
+        if (this.currentFolderId === folder.id) {
+          this.currentFolderId = 'all';
+        }
+        await this.loadFolders();
+        await this.loadBooks();
+        this.renderFolders();
+        this.renderBooks();
+        window.app.showToast(`Pasta "${folder.name}" excluída.`);
+      }
+    });
+
+    const closeCtx = () => {
+      ctxMenu.classList.add('hidden');
+      document.removeEventListener('click', closeCtx);
+    };
+    setTimeout(() => document.addEventListener('click', closeCtx), 50);
+  }
+
   renderBooks() {
     const grid = document.getElementById('books-grid');
     const emptyState = document.getElementById('empty-state');
     const headerTitle = document.getElementById('current-folder-title');
+    const btnEmptyTrash = document.getElementById('btn-empty-trash');
 
     if (!grid) return;
 
     const activeFolder = this.folders.find(f => f.id === this.currentFolderId);
     if (headerTitle) {
       headerTitle.textContent = activeFolder ? activeFolder.name : 'Biblioteca';
+    }
+
+    if (btnEmptyTrash) {
+      btnEmptyTrash.classList.toggle('hidden', this.currentFolderId !== 'trash');
     }
 
     let filtered = this.books.filter(book => {
@@ -286,6 +542,8 @@ class LibraryManager {
       return true;
     });
 
+    this.currentFilteredBooks = filtered;
+
     if (filtered.length === 0) {
       grid.innerHTML = '';
       if (emptyState) emptyState.classList.remove('hidden');
@@ -297,7 +555,8 @@ class LibraryManager {
 
     filtered.forEach(book => {
       const card = document.createElement('div');
-      card.className = 'book-card';
+      const isSelected = this.selectedBookIds.has(book.id);
+      card.className = `book-card ${isSelected ? 'selected' : ''}`;
 
       const totalPages = book.totalPages || book.pageCount || 1;
       const lastPage = book.lastPage || 1;
@@ -314,9 +573,11 @@ class LibraryManager {
       const coverSrc = book.coverUrl || book.coverDataUrl;
 
       card.innerHTML = `
+        ${this.isMultiSelectActive ? `<input type="checkbox" class="book-card-checkbox" ${isSelected ? 'checked' : ''}>` : ''}
         <div class="book-card-actions">
           ${!isTrashView ? `
             <button class="btn-icon-square btn-toggle-fav" title="Favoritar">${starIcon}</button>
+            <button class="btn-icon-square btn-edit-pdf-book" title="Editar PDF Avançado"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg></button>
             <button class="btn-icon-square btn-move-trash" title="Mover para a Lixeira">${trashIcon}</button>
           ` : `
             <button class="btn-icon-square btn-restore-book" title="Restaurar Livro">${restoreIcon}</button>
@@ -351,6 +612,16 @@ class LibraryManager {
             book.isFavorite = !book.isFavorite;
             await window.dbManager.saveBook(book);
             this.render();
+          });
+        }
+
+        const btnEditPdf = card.querySelector('.btn-edit-pdf-book');
+        if (btnEditPdf) {
+          btnEditPdf.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (window.pdfEditorManager) {
+              window.pdfEditorManager.openBookInEditor(book);
+            }
           });
         }
 
@@ -392,8 +663,34 @@ class LibraryManager {
         }
       }
 
-      // Clique no card para abrir o leitor
+      // Checkbox click in Multi-Select Mode
+      const checkbox = card.querySelector('.book-card-checkbox');
+      if (checkbox) {
+        checkbox.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (checkbox.checked) {
+            this.selectedBookIds.add(book.id);
+          } else {
+            this.selectedBookIds.delete(book.id);
+          }
+          this.updateMultiSelectBar();
+          card.classList.toggle('selected', checkbox.checked);
+        });
+      }
+
+      // Clique no card
       card.addEventListener('click', async () => {
+        if (this.isMultiSelectActive) {
+          if (this.selectedBookIds.has(book.id)) {
+            this.selectedBookIds.delete(book.id);
+          } else {
+            this.selectedBookIds.add(book.id);
+          }
+          this.updateMultiSelectBar();
+          this.renderBooks();
+          return;
+        }
+
         try {
           const freshBook = (await window.dbManager.getBook(book.id)) || book;
           window.readerManager.openBook(freshBook);

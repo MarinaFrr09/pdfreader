@@ -285,59 +285,63 @@
   transition: filter 0.3s ease;
 }
 
-/* Subtle, Slower & Realistic 3D Book Page Curl Animation (0.75s) */
-@keyframes realisticPageCurlNext {
-  0% {
-    transform-origin: left center;
-    transform: perspective(1800px) rotateY(0deg);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
-  }
-  38% {
-    transform-origin: left center;
-    transform: perspective(1800px) rotateY(-14deg) scale(0.992) skewY(-0.4deg);
-    box-shadow: -10px 8px 22px rgba(0, 0, 0, 0.2);
-  }
-  70% {
-    transform-origin: left center;
-    transform: perspective(1800px) rotateY(-4deg) scale(0.998) skewY(-0.1deg);
-    box-shadow: -4px 4px 12px rgba(0, 0, 0, 0.14);
-  }
-  100% {
-    transform-origin: left center;
-    transform: perspective(1800px) rotateY(0deg) scale(1) skewY(0deg);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
-  }
+/* Side Edge Page Turn Arrow Buttons (Fade in on proximity hover) */
+.edge-page-turn-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 45;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
-@keyframes realisticPageCurlPrev {
-  0% {
-    transform-origin: right center;
-    transform: perspective(1800px) rotateY(0deg);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
-  }
-  38% {
-    transform-origin: right center;
-    transform: perspective(1800px) rotateY(14deg) scale(0.992) skewY(0.4deg);
-    box-shadow: 10px 8px 22px rgba(0, 0, 0, 0.2);
-  }
-  70% {
-    transform-origin: right center;
-    transform: perspective(1800px) rotateY(4deg) scale(0.998) skewY(0.1deg);
-    box-shadow: 4px 4px 12px rgba(0, 0, 0, 0.14);
-  }
-  100% {
-    transform-origin: right center;
-    transform: perspective(1800px) rotateY(0deg) scale(1) skewY(0deg);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
-  }
+.reader-viewport:hover .edge-page-turn-btn.visible,
+.edge-page-turn-btn.visible {
+  opacity: 0.8;
+  pointer-events: auto;
 }
 
-.page-flip-anim-next .pdf-page-view:last-child {
-  animation: realisticPageCurlNext 0.75s cubic-bezier(0.25, 1, 0.5, 1);
+.edge-page-turn-btn:hover {
+  opacity: 1 !important;
+  background-color: var(--primary) !important;
+  border-color: var(--primary) !important;
+  transform: translateY(-50%) scale(1.15) !important;
+  box-shadow: 0 10px 28px rgba(59, 130, 246, 0.5) !important;
 }
 
-.page-flip-anim-prev .pdf-page-view:first-child {
-  animation: realisticPageCurlPrev 0.75s cubic-bezier(0.25, 1, 0.5, 1);
+.edge-btn-left {
+  left: 24px;
+}
+
+.edge-btn-right {
+  right: 24px;
+}
+
+[data-theme="light"] .edge-page-turn-btn {
+  background: rgba(255, 255, 255, 0.85);
+  color: #1e293b;
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .edge-page-turn-btn:hover {
+  background-color: var(--primary) !important;
+  color: white !important;
+  border-color: var(--primary) !important;
 }
 
 /* Disabled Page Flip Animation - Strict Override */
@@ -419,13 +423,17 @@ body.no-page-animation .pdf-page-view,
   z-index: 10;
 }
 
+.highlights-overlay,
+.highlight-group {
+  will-change: opacity, transform;
+  transform: translateZ(0);
+}
+
 .highlight-rect {
   position: absolute;
-  mix-blend-mode: multiply !important;
-  opacity: 0.48;
+  opacity: 1.0;
   border-radius: 2px;
-  pointer-events: auto;
-  cursor: pointer;
+  pointer-events: none;
   z-index: 10;
 }
 
@@ -489,51 +497,6 @@ body.no-page-animation .pdf-page-view,
   border: 1px solid var(--border-color);
 }
 
-/* Realistic 3D Book Page Curl Animation */
-@keyframes realisticPageCurlNext {
-  0% {
-    transform-origin: left center;
-    transform: perspective(1600px) rotateY(0deg);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  }
-  40% {
-    transform-origin: left center;
-    transform: perspective(1600px) rotateY(-38deg) scale(0.97) skewY(-1deg);
-    box-shadow: -20px 15px 35px rgba(0, 0, 0, 0.4);
-  }
-  100% {
-    transform-origin: left center;
-    transform: perspective(1600px) rotateY(0deg) scale(1) skewY(0deg);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  }
-}
-
-@keyframes realisticPageCurlPrev {
-  0% {
-    transform-origin: right center;
-    transform: perspective(1600px) rotateY(0deg);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  }
-  40% {
-    transform-origin: right center;
-    transform: perspective(1600px) rotateY(38deg) scale(0.97) skewY(1deg);
-    box-shadow: 20px 15px 35px rgba(0, 0, 0, 0.4);
-  }
-  100% {
-    transform-origin: right center;
-    transform: perspective(1600px) rotateY(0deg) scale(1) skewY(0deg);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  }
-}
-
-.page-flip-anim-next .pdf-page-view:last-child {
-  animation: realisticPageCurlNext 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.page-flip-anim-prev .pdf-page-view:first-child {
-  animation: realisticPageCurlPrev 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
 /* Page-Bounded Outer Edge Click Hotzones (Sem aura azul e sem interferir na seleção) */
 .page-edge-zone {
   position: absolute;
@@ -577,38 +540,45 @@ body.no-page-animation .pdf-page-view,
   border: 1px solid var(--border-color);
 }
 
-/* BOTTOM TOOLBAR - Fixed at Bottom Center of Screen */
+/* BOTTOM TOOLBAR - Fixed Floating Horizontal Glassmorphic Bar at Bottom Center of Screen */
 .reader-bottom-bar {
   position: fixed !important;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 600;
+  bottom: 24px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 9999 !important;
   background-color: #0f172a !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: var(--radius-full);
-  padding: 8px 16px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
-  color: #f8fafc;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 9999px !important;
+  padding: 8px 18px !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 12px !important;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45) !important;
+  color: #f8fafc !important;
   opacity: 1 !important;
+  max-width: 95vw !important;
+  width: auto !important;
+  height: auto !important;
+  pointer-events: auto !important;
 }
 
 [data-theme="light"] .reader-bottom-bar {
   background-color: #ffffff !important;
-  border-color: rgba(0, 0, 0, 0.18);
-  color: #0f172a;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  border-color: rgba(0, 0, 0, 0.18) !important;
+  color: #0f172a !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18) !important;
 }
 
 .bottom-toolbar-group {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 6px !important;
 }
 
 .toolbar-btn-glass {
@@ -702,24 +672,24 @@ body.no-page-animation .pdf-page-view,
   background-color: var(--bg-sidebar);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-full);
-  padding: 6px 12px;
+  padding: 6px 14px;
   display: flex;
   align-items: center;
   gap: 8px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
-  transform: translate(-50%, -100%) translateY(-10px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
   animation: popupFadeIn 0.15s ease forwards;
   pointer-events: auto;
+  white-space: nowrap;
 }
 
 @keyframes popupFadeIn {
   from {
     opacity: 0;
-    transform: translate(-50%, -100%) translateY(0px) scale(0.95);
+    transform: scale(0.95);
   }
   to {
     opacity: 1;
-    transform: translate(-50%, -100%) translateY(-10px) scale(1);
+    transform: scale(1);
   }
 }
 
@@ -845,4 +815,128 @@ body.no-page-animation .pdf-page-view,
 .bookmark-page {
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+
+/* ==========================================================================
+   READER RESPONSIVE BREAKPOINTS (TABLET & MOBILE)
+   ========================================================================== */
+
+/* 📱 TABLET READER BREAKPOINT (768px - 1024px) */
+@media screen and (max-width: 1024px) and (min-width: 769px) {
+  .reader-viewport {
+    padding: 20px !important;
+  }
+
+  .reader-bottom-bar {
+    bottom: 16px !important;
+    padding: 6px 14px !important;
+    gap: 8px !important;
+    max-width: 96vw !important;
+    overflow-x: auto !important;
+  }
+
+  .toolbar-btn-glass {
+    padding: 6px 10px;
+    font-size: 0.78rem;
+  }
+
+  .reader-sidebar {
+    width: 280px;
+  }
+}
+
+/* 📱 MOBILE READER BREAKPOINT (< 768px) */
+@media screen and (max-width: 768px) {
+  .reader-viewport {
+    padding: 12px 6px !important;
+  }
+
+  .page-container-wrapper {
+    gap: 12px !important;
+    padding: 12px 6px !important;
+  }
+
+  .pdf-page-view {
+    max-width: 100% !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15) !important;
+  }
+
+  .pdf-canvas {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Reader Sidebar: Slide-over drawer on mobile */
+  .reader-sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 85vw !important;
+    max-width: 320px !important;
+    height: 100vh !important;
+    z-index: 9999 !important;
+    box-shadow: 0 0 32px rgba(0, 0, 0, 0.5) !important;
+  }
+
+  /* Reader Bottom Toolbar: Scrollable horizontal floating capsule */
+  .reader-bottom-bar {
+    bottom: 10px !important;
+    padding: 6px 10px !important;
+    gap: 6px !important;
+    max-width: 96vw !important;
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+    border-radius: 9999px !important;
+  }
+
+  .reader-bottom-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .toolbar-btn-glass {
+    padding: 6px 8px;
+    font-size: 0.75rem;
+  }
+
+  .toolbar-btn-glass span {
+    display: inline-block;
+  }
+
+  #reader-book-title {
+    max-width: 90px !important;
+  }
+
+  .selection-popup {
+    max-width: 94vw !important;
+    padding: 4px 8px !important;
+    gap: 6px !important;
+    font-size: 0.78rem !important;
+  }
+
+  .color-swatch {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* 📱 VERY NARROW MOBILE SCREENS (< 480px) */
+@media screen and (max-width: 480px) {
+  .toolbar-btn-glass span:not(#reader-book-title) {
+    display: none !important;
+  }
+  
+  .toolbar-btn-glass {
+    padding: 6px 8px !important;
+    min-width: 36px;
+    justify-content: center;
+  }
+  
+  .bottom-page-jumper {
+    padding: 2px 6px;
+    font-size: 0.75rem;
+  }
+  
+  .bottom-page-jumper input {
+    width: 24px;
+  }
 }

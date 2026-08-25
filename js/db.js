@@ -125,6 +125,12 @@ class DatabaseManager {
     if (error) console.error('Erro ao salvar pasta:', error);
   }
 
+  async deleteFolder(id) {
+    if (!this.client) return;
+    const { error } = await this.client.from('folders').delete().eq('id', id);
+    if (error) console.error('Erro ao excluir pasta:', error);
+  }
+
   // --- LIVROS & STORAGE (ISOLADOS POR USUÁRIO) ---
   async getAllBooks() {
     if (!this.client) return [];
