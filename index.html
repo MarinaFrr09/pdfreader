@@ -2,9 +2,21 @@
 <html lang="pt-BR" data-theme="light">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Leitor de Livros PDF - Biblioteca & Marcadores</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>PDF Reader</title>
+
+  <!-- iOS / iPhone Web App (Add to Home Screen) Meta Tags & Icons -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="PDF Reader">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="apple-touch-icon.png">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#3b82f6">
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <!-- External Stylesheets -->
   <link rel="stylesheet" href="lib/pdf_viewer.min.css">
@@ -108,7 +120,7 @@
         <div class="header-actions">
           <!-- Google Authentication Box -->
           <div id="user-auth-box" class="user-auth-box">
-            <button id="btn-google-login" class="btn-google-login">
+            <button id="btn-google-login" class="btn-google-login" onclick="if(window.dbManager) window.dbManager.signInWithGoogle(); else document.getElementById('modal-google-auth')?.classList.remove('hidden');">
               <svg width="18" height="18" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                 <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -707,7 +719,7 @@
       <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 6px;">Conectar com Google</h3>
       <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 18px; line-height: 1.4;">Cada conta Google possui seu próprio banco de dados isolado com livros, grifos e notas exclusivos.</p>
 
-      <form id="form-google-signin" style="display: flex; flex-direction: column; gap: 12px;">
+      <form id="form-google-signin" onsubmit="event.preventDefault(); const em = document.getElementById('google-email-input').value; const nm = document.getElementById('google-name-input').value; if(window.dbManager) window.dbManager.signInWithGoogleAccount(em, nm);" style="display: flex; flex-direction: column; gap: 12px;">
         <div class="form-group" style="text-align: left;">
           <label for="google-email-input">E-mail da Conta Google</label>
           <input type="email" id="google-email-input" placeholder="exemplo@gmail.com" required style="width: 100%;">
