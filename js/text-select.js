@@ -679,31 +679,84 @@ class TextSelectionManager {
     const bookId = window.readerManager.currentBook.id;
     const pageNum = this.activeSelection.pageNum;
     const pageWrapper = this.activeSelection.pageWrapper;
+    const selRects = this.activeSelection.rects;
 
     const highlights = await window.dbManager.getHighlightsForBook(bookId);
     const pageHighlights = highlights.filter(h => h.pageNum === pageNum);
 
-    let removedCount = 0;
-    for (const h of pageHighlights) {
-      const isOverlapping = h.rects.some(hr => {
-        return this.activeSelection.rects.some(sr => {
-          return !(sr.left > hr.left + hr.width || 
-                   sr.left + sr.width < hr.left || 
-                   sr.top > hr.top + hr.height || 
-                   sr.top + sr.height < hr.top);
-        });
-      });
+    let modifiedCount = 0;
 
-      if (isOverlapping || (this.activeSelection.text && h.text.includes(this.activeSelection.text))) {
-        await window.dbManager.deleteHighlight(h.id);
-        const overlay = pageWrapper.querySelector('.highlights-overlay');
-        if (overlay) {
-          const els = overlay.querySelectorAll(`[data-highlight-id="${h.id}"]`);
-          els.forEach(el => el.remove());
+    for (const h of pageHighlights) {
+      const newRects = [];
+      let isTouched = false;
+
+      for (const hr of h.rects) {
+        // Find selection rects on the same line (vertical overlap)
+        const overlappingSelRects = selRects.filter(sr => {
+          const verticalOverlap = !(sr.top > hr.top + hr.height || sr.top + sr.height < hr.top);
+          const horizontalOverlap = !(sr.left > hr.left + hr.width || sr.left + sr.width < hr.left);
+          return verticalOverlap && horizontalOverlap;
+        });
+
+        if (overlappingSelRects.length === 0) {
+          newRects.push(hr);
+        } else {
+          isTouched = true;
+          // Calculate horizontal subtraction ranges
+          let currentIntervals = [{ left: hr.left, right: hr.left + hr.width }];
+
+          for (const sr of overlappingSelRects) {
+            const cutLeft = sr.left;
+            const cutRight = sr.left + sr.width;
+            const nextIntervals = [];
+
+            for (const interval of currentIntervals) {
+              if (cutRight <= interval.left || cutLeft >= interval.right) {
+                nextIntervals.push(interval);
+              } else {
+                if (interval.left < cutLeft) {
+                  nextIntervals.push({ left: interval.left, right: cutLeft });
+                }
+                if (interval.right > cutRight) {
+                  nextIntervals.push({ left: cutRight, right: interval.right });
+                }
+              }
+            }
+            currentIntervals = nextIntervals;
+          }
+
+          // Convert remaining intervals back to rects
+          for (const interval of currentIntervals) {
+            if (interval.right - interval.left > 0.001) {
+              newRects.push({
+                left: interval.left,
+                top: hr.top,
+                width: interval.right - interval.left,
+                height: hr.height
+              });
+            }
+          }
         }
-        removedCount++;
+      }
+
+      if (isTouched) {
+        modifiedCount++;
+        if (newRects.length === 0) {
+          await window.dbManager.deleteHighlight(h.id);
+        } else {
+          h.rects = newRects;
+          await window.dbManager.saveHighlight(h);
+        }
       }
     }
+
+    // Re-render highlights on page
+    const overlay = pageWrapper.querySelector('.highlights-overlay');
+    if (overlay) overlay.innerHTML = '';
+    
+    const updatedHighlights = await window.dbManager.getHighlightsForBook(bookId);
+    const updatedPageHighlights = updatedHighlights.filter(h => h.pageNum === pageNum);
+    updatedPageHighlights.forEach(h => this.renderHighlightOnPage(h, pageWrapper));
 
     window.getSelection().removeAllRanges();
     this.hidePopup();
@@ -712,10 +765,10 @@ class TextSelectionManager {
       window.readerSidebarManager.renderHighlightsList();
     }
 
-    if (removedCount > 0) {
-      window.app.showToast('Marcação removida com sucesso!');
+    if (modifiedCount > 0) {
+      window.app.showToast('Marcação removida do trecho selecionado!');
     } else {
-      window.app.showToast('Nenhuma marcação encontrada no texto selecionado.', 'info');
+      window.app.showToast('Nenhuma marcação encontrada no trecho selecionado.', 'info');
     }
   }
 

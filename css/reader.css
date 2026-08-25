@@ -170,9 +170,12 @@
   color: var(--text-muted);
 }
 
-/* Horizontal Reader Viewport */
+/* Horizontal Reader Viewport - Perfect Center Alignment */
 .reader-viewport {
   flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   overflow: auto !important;
   background-color: var(--bg-app);
   user-select: text;
@@ -203,12 +206,12 @@
   background-color: rgba(248, 250, 252, 0.8);
 }
 
-/* Horizontal & Vertical Page Container - Triggers full 100% scroll/pan in 2-page spread mode */
+/* Horizontal & Vertical Page Container - Perfect Center Alignment */
 .page-container-wrapper {
   position: relative;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   gap: 24px;
   background: transparent !important;
   padding: 32px !important;
@@ -243,6 +246,35 @@
   outline: none !important;
   background-color: #111827;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45) !important;
+}
+
+/* Small & Discrete Page Number Badge at the Bottom Center of the Page Sheet (Only the number) */
+.page-sheet-number {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  pointer-events: none;
+  z-index: 30;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  letter-spacing: 0.5px;
+}
+
+[data-theme="light"] .page-sheet-number {
+  color: rgba(15, 23, 42, 0.75);
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 
 .pdf-canvas {

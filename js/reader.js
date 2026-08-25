@@ -459,6 +459,12 @@ class ReaderManager {
           );
         }
 
+        // Small discrete page number badge at the bottom center of the page sheet (only the number)
+        const pageBadge = document.createElement('div');
+        pageBadge.className = 'page-sheet-number';
+        pageBadge.textContent = pNum;
+        pageView.appendChild(pageBadge);
+
         newPageViews.push(pageView);
       }
 
