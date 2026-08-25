@@ -916,7 +916,17 @@
     height: auto !important;
   }
 
-  .editor-studio-toolbar {
+  /* Hide toolbar completely whenever editor view is hidden */
+  .pdf-editor-view.hidden .editor-studio-toolbar,
+  #pdf-editor-view.hidden .editor-studio-toolbar {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    opacity: 0 !important;
+    transform: translateY(200%) !important;
+  }
+
+  .pdf-editor-view:not(.hidden) .editor-studio-toolbar {
     position: fixed !important;
     bottom: 0 !important;
     left: 0 !important;
@@ -941,7 +951,7 @@
     transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
   }
 
-  .editor-studio-toolbar.collapsed-mobile {
+  .pdf-editor-view:not(.hidden) .editor-studio-toolbar.collapsed-mobile {
     transform: translateY(115%) !important;
   }
 

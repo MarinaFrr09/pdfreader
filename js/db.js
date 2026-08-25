@@ -1,7 +1,8 @@
 /* ==========================================================================
-   MULTI-TENANT ISOLATED DATABASE & GOOGLE AUTHENTICATION MANAGER
-   Each user has their own completely isolated database of books, folders,
-   highlights, and notes keyed by their Google Account.
+   MULTI-TENANT ISOLATED DATABASE & CLOUD SYNCHRONIZATION ENGINE
+   Each user has a deterministic ID generated from their Google email.
+   Logging in with the same email on ANY device (iPhone, PC, GitHub Pages)
+   automatically synchronizes their books, folders, highlights and notes!
    ========================================================================== */
 
 const SUPABASE_URL = 'https://exohflhcfvmejgpababy.supabase.co';
@@ -10,6 +11,18 @@ const SUPABASE_ANON_KEY = 'sb_publishable_shBfiXkMH6RSYPqbzuPXvA_IkLy9yz7';
 const supabaseClient = (window.supabase && typeof window.supabase.createClient === 'function') 
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) 
   : null;
+
+function getDeterministicUserId(email) {
+  if (!email) return 'guest_local';
+  const clean = email.trim().toLowerCase();
+  let hash = 0;
+  for (let i = 0; i < clean.length; i++) {
+    hash = ((hash << 5) - hash) + clean.charCodeAt(i);
+    hash |= 0;
+  }
+  const cleanPrefix = clean.replace(/[^a-z0-9]/g, '_').substring(0, 18);
+  return `usr_${cleanPrefix}_${Math.abs(hash).toString(16)}`;
+}
 
 class DatabaseManager {
   constructor() {
@@ -21,10 +34,8 @@ class DatabaseManager {
   }
 
   async init() {
-    // 1. Initialize IndexedDB
     await this.initIndexedDB();
 
-    // 2. Initialize Supabase if available
     if (!this.client && window.supabase) {
       try {
         this.client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -33,73 +44,38 @@ class DatabaseManager {
       }
     }
 
-    if (this.client) {
-      try {
-        const { data: { session } } = await this.client.auth.getSession();
-        if (session && session.user) {
-          this.currentUser = {
-            id: session.user.id,
-            email: session.user.email,
-            user_metadata: session.user.user_metadata || {
-              full_name: session.user.email.split('@')[0],
-              avatar_url: `https://api.dicebear.com/7.x/bottts/svg?seed=${session.user.email}`
-            }
-          };
-          localStorage.setItem('pdf_reader_active_user', JSON.stringify(this.currentUser));
-        }
-
-        this.client.auth.onAuthStateChange((event, session) => {
-          if (session && session.user) {
-            this.currentUser = {
-              id: session.user.id,
-              email: session.user.email,
-              user_metadata: session.user.user_metadata || {
-                full_name: session.user.email.split('@')[0],
-                avatar_url: `https://api.dicebear.com/7.x/bottts/svg?seed=${session.user.email}`
-              }
-            };
-            localStorage.setItem('pdf_reader_active_user', JSON.stringify(this.currentUser));
-          }
-          if (window.app && typeof window.app.onAuthChange === 'function') {
-            window.app.onAuthChange(this.currentUser);
-          }
-        });
-      } catch (err) {
-        console.warn('Supabase session fetch warning:', err);
-      }
+    if (this.currentUser && this.currentUser.id) {
+      // Sync cloud data in the background
+      this.syncCloudData(this.currentUser.id);
     }
 
     return this;
   }
 
   initIndexedDB() {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const request = indexedDB.open(this.dbName, this.dbVersion);
 
       request.onupgradeneeded = (e) => {
         const db = e.target.result;
         
-        // Books Store
         if (!db.objectStoreNames.contains('books')) {
           const bookStore = db.createObjectStore('books', { keyPath: 'id' });
           bookStore.createIndex('userId', 'userId', { unique: false });
           bookStore.createIndex('folderId', 'folderId', { unique: false });
         }
 
-        // Folders Store
         if (!db.objectStoreNames.contains('folders')) {
           const folderStore = db.createObjectStore('folders', { keyPath: 'id' });
           folderStore.createIndex('userId', 'userId', { unique: false });
         }
 
-        // Highlights Store
         if (!db.objectStoreNames.contains('highlights')) {
           const highlightStore = db.createObjectStore('highlights', { keyPath: 'id' });
           highlightStore.createIndex('userId', 'userId', { unique: false });
           highlightStore.createIndex('bookId', 'bookId', { unique: false });
         }
 
-        // Notes Store
         if (!db.objectStoreNames.contains('notes')) {
           const noteStore = db.createObjectStore('notes', { keyPath: 'id' });
           noteStore.createIndex('userId', 'userId', { unique: false });
@@ -119,17 +95,15 @@ class DatabaseManager {
     });
   }
 
-  // --- GOOGLE AUTHENTICATION & MULTI-USER SWITCHER ---
+  // --- DETERMINISTIC GOOGLE AUTHENTICATION & SAME-EMAIL SYNC ---
 
   async signInWithGoogle() {
-    // Open Google Sign-In Modal
     const modal = document.getElementById('modal-google-auth');
     if (modal) {
       modal.classList.remove('hidden');
       this.renderSavedAccountsList();
       const input = document.getElementById('google-email-input');
       if (input) setTimeout(() => input.focus(), 100);
-      return;
     }
   }
 
@@ -140,7 +114,7 @@ class DatabaseManager {
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const userId = 'usr_' + btoa(cleanEmail).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+    const userId = getDeterministicUserId(cleanEmail);
     const fullName = name && name.trim() ? name.trim() : cleanEmail.split('@')[0];
     const avatarUrl = `https://api.dicebear.com/7.x/bottts/svg?seed=${cleanEmail}`;
 
@@ -157,20 +131,22 @@ class DatabaseManager {
     this.currentUser = user;
     localStorage.setItem('pdf_reader_active_user', JSON.stringify(user));
 
-    // Save to device recent accounts list
+    // Save to device recent accounts
     let savedAccounts = this.getSavedAccounts();
-    if (!savedAccounts.some(acc => acc.id === userId)) {
+    if (!savedAccounts.some(acc => acc.id === userId || acc.email === cleanEmail)) {
       savedAccounts.push(user);
     } else {
-      savedAccounts = savedAccounts.map(acc => acc.id === userId ? user : acc);
+      savedAccounts = savedAccounts.map(acc => (acc.id === userId || acc.email === cleanEmail) ? user : acc);
     }
     localStorage.setItem('pdf_reader_saved_accounts', JSON.stringify(savedAccounts));
 
-    // Close Modal
     const modal = document.getElementById('modal-google-auth');
     if (modal) modal.classList.add('hidden');
 
-    window.app.showToast(`Conectado como ${fullName}! Carregando seu banco de dados...`);
+    window.app.showToast(`Conectado como ${fullName}! Sincronizando sua biblioteca...`);
+
+    // Run Full Cloud Sync for this user
+    await this.syncCloudData(userId);
 
     if (window.app && typeof window.app.onAuthChange === 'function') {
       window.app.onAuthChange(user);
@@ -239,12 +215,60 @@ class DatabaseManager {
     return this.currentUser ? this.currentUser.id : 'guest_local';
   }
 
-  // --- PASTAS (ISOLADAS POR USUÁRIO) ---
+  // --- CLOUD SYNCHRONIZATION ENGINE ---
+
+  async syncCloudData(userId) {
+    if (!this.client || userId === 'guest_local') return;
+
+    try {
+      // 1. Sync Folders
+      const { data: cloudFolders } = await this.client.from('folders').select('*').eq('user_id', userId);
+      if (cloudFolders && cloudFolders.length > 0) {
+        for (const f of cloudFolders) {
+          await this.saveFolderLocal({ ...f, userId: userId, isSystem: !!f.isSystem });
+        }
+      }
+
+      // 2. Sync Books
+      const { data: cloudBooks } = await this.client.from('books').select('*').eq('user_id', userId);
+      if (cloudBooks && cloudBooks.length > 0) {
+        for (const b of cloudBooks) {
+          await this.saveBookLocal({
+            ...b,
+            userId: userId,
+            totalPages: b.totalPages || b.totalpages || b.pageCount || 1,
+            pageCount: b.totalPages || b.totalpages || b.pageCount || 1,
+            coverUrl: b.coverUrl || b.coverurl || b.coverDataUrl,
+            fileUrl: b.fileUrl || b.fileurl
+          });
+        }
+      }
+
+      // 3. Sync Highlights
+      const { data: cloudHighlights } = await this.client.from('highlights').select('*').eq('user_id', userId);
+      if (cloudHighlights && cloudHighlights.length > 0) {
+        for (const h of cloudHighlights) {
+          await this.saveHighlightLocal({ ...h, userId: userId });
+        }
+      }
+
+      // 4. Sync Notes
+      const { data: cloudNotes } = await this.client.from('notes').select('*').eq('user_id', userId);
+      if (cloudNotes && cloudNotes.length > 0) {
+        for (const n of cloudNotes) {
+          await this.saveNoteLocal({ ...n, userId: userId });
+        }
+      }
+    } catch (err) {
+      console.warn('Cloud synchronization note:', err);
+    }
+  }
+
+  // --- PASTAS ---
 
   async getAllFolders() {
     const userId = this.getCurrentUserId();
 
-    // 1. Fetch from IndexedDB
     if (this.idb) {
       const localFolders = await new Promise((resolve) => {
         try {
@@ -280,6 +304,19 @@ class DatabaseManager {
     return defaultFolders;
   }
 
+  async saveFolderLocal(folder) {
+    if (this.idb) {
+      await new Promise((resolve) => {
+        try {
+          const tx = this.idb.transaction('folders', 'readwrite');
+          tx.objectStore('folders').put(folder);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => resolve();
+        } catch(e) { resolve(); }
+      });
+    }
+  }
+
   async saveFolder(folder) {
     const userId = this.getCurrentUserId();
     const payload = {
@@ -290,22 +327,8 @@ class DatabaseManager {
       isSystem: !!folder.isSystem
     };
 
-    // Save to IndexedDB
-    if (this.idb) {
-      await new Promise((resolve) => {
-        try {
-          const tx = this.idb.transaction('folders', 'readwrite');
-          const store = tx.objectStore('folders');
-          store.put(payload);
-          tx.oncomplete = () => resolve();
-          tx.onerror = () => resolve();
-        } catch(e) {
-          resolve();
-        }
-      });
-    }
+    await this.saveFolderLocal(payload);
 
-    // Sync to Supabase if connected
     if (this.client && userId !== 'guest_local') {
       try {
         await this.client.from('folders').upsert(payload);
@@ -332,7 +355,7 @@ class DatabaseManager {
     }
   }
 
-  // --- LIVROS (ISOLADOS POR USUÁRIO) ---
+  // --- LIVROS ---
 
   async getAllBooks() {
     const userId = this.getCurrentUserId();
@@ -379,6 +402,19 @@ class DatabaseManager {
     return null;
   }
 
+  async saveBookLocal(book) {
+    if (this.idb) {
+      await new Promise((resolve) => {
+        try {
+          const tx = this.idb.transaction('books', 'readwrite');
+          tx.objectStore('books').put(book);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => resolve();
+        } catch(e) { resolve(); }
+      });
+    }
+  }
+
   async saveBook(book) {
     const userId = this.getCurrentUserId();
     const payload = {
@@ -398,17 +434,22 @@ class DatabaseManager {
       createdAt: book.createdAt || new Date().toISOString()
     };
 
-    if (this.idb) {
-      await new Promise((resolve) => {
-        try {
-          const tx = this.idb.transaction('books', 'readwrite');
-          tx.objectStore('books').put(payload);
-          tx.oncomplete = () => resolve();
-          tx.onerror = () => resolve();
-        } catch(e) {
-          resolve();
-        }
-      });
+    await this.saveBookLocal(payload);
+
+    if (this.client && userId !== 'guest_local') {
+      try {
+        const cloudPayload = {
+          id: payload.id,
+          folderId: payload.folderId,
+          title: payload.title,
+          fileUrl: payload.fileUrl,
+          coverUrl: payload.coverUrl,
+          lastPage: payload.lastPage,
+          totalPages: payload.totalPages,
+          user_id: userId
+        };
+        await this.client.from('books').upsert(cloudPayload);
+      } catch(e) {}
     }
 
     return payload;
@@ -425,9 +466,15 @@ class DatabaseManager {
         } catch(e) { resolve(); }
       });
     }
+
+    if (this.client && this.getCurrentUserId() !== 'guest_local') {
+      try {
+        await this.client.from('books').delete().eq('id', id);
+      } catch(e) {}
+    }
   }
 
-  // --- GRIFOS & NOTAS (ISOLADOS POR USUÁRIO) ---
+  // --- GRIFOS & NOTAS ---
 
   async getHighlights(bookId, pageNum) {
     const userId = this.getCurrentUserId();
@@ -460,6 +507,19 @@ class DatabaseManager {
     return this.getHighlights(bookId);
   }
 
+  async saveHighlightLocal(highlight) {
+    if (this.idb) {
+      await new Promise((resolve) => {
+        try {
+          const tx = this.idb.transaction('highlights', 'readwrite');
+          tx.objectStore('highlights').put(highlight);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => resolve();
+        } catch(e) { resolve(); }
+      });
+    }
+  }
+
   async saveHighlight(highlight) {
     const userId = this.getCurrentUserId();
     const payload = {
@@ -470,15 +530,12 @@ class DatabaseManager {
       createdAt: highlight.createdAt || new Date().toISOString()
     };
 
-    if (this.idb) {
-      await new Promise((resolve) => {
-        try {
-          const tx = this.idb.transaction('highlights', 'readwrite');
-          tx.objectStore('highlights').put(payload);
-          tx.oncomplete = () => resolve();
-          tx.onerror = () => resolve();
-        } catch(e) { resolve(); }
-      });
+    await this.saveHighlightLocal(payload);
+
+    if (this.client && userId !== 'guest_local') {
+      try {
+        await this.client.from('highlights').upsert(payload);
+      } catch(e) {}
     }
 
     return payload;
@@ -494,6 +551,12 @@ class DatabaseManager {
           tx.onerror = () => resolve();
         } catch(e) { resolve(); }
       });
+    }
+
+    if (this.client && this.getCurrentUserId() !== 'guest_local') {
+      try {
+        await this.client.from('highlights').delete().eq('id', id);
+      } catch(e) {}
     }
   }
 
@@ -518,6 +581,19 @@ class DatabaseManager {
     return [];
   }
 
+  async saveNoteLocal(note) {
+    if (this.idb) {
+      await new Promise((resolve) => {
+        try {
+          const tx = this.idb.transaction('notes', 'readwrite');
+          tx.objectStore('notes').put(note);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => resolve();
+        } catch(e) { resolve(); }
+      });
+    }
+  }
+
   async saveNote(note) {
     const userId = this.getCurrentUserId();
     const payload = {
@@ -528,15 +604,12 @@ class DatabaseManager {
       createdAt: note.createdAt || new Date().toISOString()
     };
 
-    if (this.idb) {
-      await new Promise((resolve) => {
-        try {
-          const tx = this.idb.transaction('notes', 'readwrite');
-          tx.objectStore('notes').put(payload);
-          tx.oncomplete = () => resolve();
-          tx.onerror = () => resolve();
-        } catch(e) { resolve(); }
-      });
+    await this.saveNoteLocal(payload);
+
+    if (this.client && userId !== 'guest_local') {
+      try {
+        await this.client.from('notes').upsert(payload);
+      } catch(e) {}
     }
 
     return payload;
@@ -552,6 +625,12 @@ class DatabaseManager {
           tx.onerror = () => resolve();
         } catch(e) { resolve(); }
       });
+    }
+
+    if (this.client && this.getCurrentUserId() !== 'guest_local') {
+      try {
+        await this.client.from('notes').delete().eq('id', id);
+      } catch(e) {}
     }
   }
 }
