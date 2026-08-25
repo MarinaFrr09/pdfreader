@@ -11,10 +11,15 @@ class App {
     this.applyTheme(this.theme);
     this.setupThemeToggle();
     this.setupGlobalShortcuts();
+    this.setupAuthListeners();
 
     // Configure PDF.js Worker path
     if (window.pdfjsLib) {
       pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdf.worker.min.js';
+    }
+
+    if (window.dbManager) {
+      await window.dbManager.init();
     }
 
     // Initialize modules
@@ -23,6 +28,58 @@ class App {
     window.textSelectionManager.init();
 
     console.log('PDF Book Reader application initialized successfully.');
+  }
+
+  setupAuthListeners() {
+    const btnGoogle = document.getElementById('btn-google-login');
+    const btnLogout = document.getElementById('btn-logout');
+
+    if (btnGoogle) {
+      btnGoogle.addEventListener('click', async () => {
+        if (window.dbManager) {
+          this.showToast('Redirecionando para o login do Google...', 'info');
+          await window.dbManager.signInWithGoogle();
+        }
+      });
+    }
+
+    if (btnLogout) {
+      btnLogout.addEventListener('click', async () => {
+        if (window.dbManager) {
+          await window.dbManager.signOut();
+          this.showToast('Você saiu da conta.');
+        }
+      });
+    }
+  }
+
+  onAuthChange(user) {
+    const btnGoogle = document.getElementById('btn-google-login');
+    const userBadge = document.getElementById('user-profile-badge');
+
+    if (user) {
+      if (btnGoogle) btnGoogle.classList.add('hidden');
+      if (userBadge) {
+        userBadge.classList.remove('hidden');
+        
+        const avatarImg = document.getElementById('user-avatar');
+        const userName = document.getElementById('user-name');
+        const userEmail = document.getElementById('user-email');
+
+        const metadata = user.user_metadata || {};
+        if (avatarImg) avatarImg.src = metadata.avatar_url || metadata.picture || 'https://via.placeholder.com/32';
+        if (userName) userName.textContent = metadata.full_name || metadata.name || user.email.split('@')[0];
+        if (userEmail) userEmail.textContent = user.email || '';
+      }
+    } else {
+      if (btnGoogle) btnGoogle.classList.remove('hidden');
+      if (userBadge) userBadge.classList.add('hidden');
+    }
+
+    if (window.libraryManager) {
+      window.libraryManager.loadBooks().then(() => window.libraryManager.render());
+      window.libraryManager.loadFolders().then(() => window.libraryManager.renderFolders());
+    }
   }
 
   setupGlobalShortcuts() {

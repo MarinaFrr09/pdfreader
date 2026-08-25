@@ -1,5 +1,5 @@
 /* ==========================================================================
-   SUPABASE STORAGE & DATABASE MANAGER
+   SUPABASE STORAGE, AUTHENTICATION & MULTI-TENANT DATABASE MANAGER
    ========================================================================== */
 
 const SUPABASE_URL = 'https://exohflhcfvmejgpababy.supabase.co';
@@ -10,18 +10,101 @@ const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_U
 class DatabaseManager {
   constructor() {
     this.client = supabaseClient;
+    this.currentUser = null;
   }
 
   async init() {
     if (!this.client && window.supabase) {
       this.client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     }
+    
+    if (this.client) {
+      const { data: { session } } = await this.client.auth.getSession();
+      this.currentUser = session ? session.user : null;
+
+      this.client.auth.onAuthStateChange((event, session) => {
+        this.currentUser = session ? session.user : null;
+        if (window.app && typeof window.app.onAuthChange === 'function') {
+          window.app.onAuthChange(this.currentUser);
+        }
+      });
+    }
+
     return this.client;
   }
 
-  // --- PASTAS ---
+  // --- GOOGLE AUTHENTICATION ---
+  async signInWithGoogle() {
+    if (!this.client) return;
+    const { data, error } = await this.client.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin + window.location.pathname
+      }
+    });
+    if (error) {
+      console.error('Erro no login com Google:', error);
+      window.app.showToast('Erro ao conectar com a conta do Google.', 'error');
+    }
+    return data;
+  }
+
+  async signInWithEmail(email, password) {
+    if (!this.client) return;
+    const { data, error } = await this.client.auth.signInWithPassword({
+      email: email,
+      password: password
+    });
+    if (error) {
+      console.error('Erro no login por email:', error);
+      window.app.showToast(error.message || 'Erro ao entrar com e-mail.', 'error');
+    } else {
+      window.app.showToast('Login realizado com sucesso!');
+    }
+    return data;
+  }
+
+  async signUpWithEmail(email, password) {
+    if (!this.client) return;
+    const { data, error } = await this.client.auth.signUp({
+      email: email,
+      password: password
+    });
+    if (error) {
+      console.error('Erro no cadastro:', error);
+      window.app.showToast(error.message || 'Erro ao criar conta.', 'error');
+    } else {
+      window.app.showToast('Conta criada com sucesso!');
+    }
+    return data;
+  }
+
+  async signOut() {
+    if (!this.client) return;
+    const { error } = await this.client.auth.signOut();
+    if (error) {
+      console.error('Erro ao sair da conta:', error);
+    }
+    this.currentUser = null;
+    if (window.app && typeof window.app.onAuthChange === 'function') {
+      window.app.onAuthChange(null);
+    }
+  }
+
+  getCurrentUserId() {
+    return this.currentUser ? this.currentUser.id : 'guest';
+  }
+
+  // --- PASTAS (ISOLADAS POR USUÁRIO) ---
   async getAllFolders() {
-    const { data, error } = await this.client.from('folders').select('*');
+    if (!this.client) return [];
+    const userId = this.getCurrentUserId();
+    let query = this.client.from('folders').select('*');
+    if (userId !== 'guest') {
+      query = query.eq('user_id', userId);
+    }
+
+    const { data, error } = await query;
     if (error) {
       console.error('Erro ao buscar pastas:', error);
       return [];
@@ -30,16 +113,28 @@ class DatabaseManager {
   }
 
   async saveFolder(folder) {
-    const { error } = await this.client.from('folders').upsert({
+    if (!this.client) return;
+    const userId = this.getCurrentUserId();
+    const payload = {
       id: folder.id,
       name: folder.name
-    });
+    };
+    if (userId !== 'guest') payload.user_id = userId;
+
+    const { error } = await this.client.from('folders').upsert(payload);
     if (error) console.error('Erro ao salvar pasta:', error);
   }
 
-  // --- LIVROS & STORAGE ---
+  // --- LIVROS & STORAGE (ISOLADOS POR USUÁRIO) ---
   async getAllBooks() {
-    const { data, error } = await this.client.from('books').select('*');
+    if (!this.client) return [];
+    const userId = this.getCurrentUserId();
+    let query = this.client.from('books').select('*');
+    if (userId !== 'guest') {
+      query = query.eq('user_id', userId);
+    }
+
+    const { data, error } = await query;
     if (error) {
       console.error('Erro ao buscar livros:', error);
       return [];
@@ -55,6 +150,7 @@ class DatabaseManager {
   }
 
   async getBook(id) {
+    if (!this.client) return null;
     const { data, error } = await this.client.from('books').select('*').eq('id', id).single();
     if (error) {
       console.error('Erro ao buscar livro:', error);
@@ -71,12 +167,14 @@ class DatabaseManager {
   }
 
   async saveBook(book) {
+    if (!this.client) return;
+    const userId = this.getCurrentUserId();
     let publicFileUrl = book.fileUrl || book.fileurl;
 
     // Upload para o bucket 'pdf-files'
     const rawFile = book.file || book.fileBlob;
     if (rawFile && (rawFile instanceof File || rawFile instanceof Blob)) {
-      const fileName = `${book.id}_${Date.now()}.pdf`;
+      const fileName = `${userId}_${book.id}_${Date.now()}.pdf`;
       const { data: uploadData, error: uploadError } = await this.client
         .storage
         .from('pdf-files')
@@ -105,6 +203,7 @@ class DatabaseManager {
       totalPages: book.totalPages || book.pageCount || 1,
       createdAt: book.createdAt || new Date().toISOString()
     };
+    if (userId !== 'guest') payload.user_id = userId;
 
     const { error } = await this.client.from('books').upsert(payload);
     if (error) {
@@ -116,13 +215,19 @@ class DatabaseManager {
   }
 
   async deleteBook(id) {
+    if (!this.client) return;
     const { error } = await this.client.from('books').delete().eq('id', id);
     if (error) console.error('Erro ao excluir livro:', error);
   }
 
-  // --- GRIFOS (HIGHLIGHTS) ---
+  // --- GRIFOS (ISOLADOS POR USUÁRIO) ---
   async getHighlights(bookId, pageNum) {
+    if (!this.client) return [];
+    const userId = this.getCurrentUserId();
     let query = this.client.from('highlights').select('*').eq('bookId', bookId);
+    if (userId !== 'guest') {
+      query = query.eq('user_id', userId);
+    }
     if (pageNum !== undefined && pageNum !== null) {
       query = query.eq('pageNum', pageNum);
     }
@@ -135,6 +240,8 @@ class DatabaseManager {
   }
 
   async saveHighlight(highlight) {
+    if (!this.client) return;
+    const userId = this.getCurrentUserId();
     const payload = {
       id: highlight.id,
       bookId: highlight.bookId,
@@ -144,18 +251,27 @@ class DatabaseManager {
       color: highlight.color || 'yellow',
       createdAt: highlight.createdAt || new Date().toISOString()
     };
+    if (userId !== 'guest') payload.user_id = userId;
+
     const { error } = await this.client.from('highlights').upsert(payload);
     if (error) console.error('Erro ao salvar grifo:', error);
   }
 
   async deleteHighlight(id) {
+    if (!this.client) return;
     const { error } = await this.client.from('highlights').delete().eq('id', id);
     if (error) console.error('Erro ao excluir grifo:', error);
   }
 
-  // --- MARCADORES (BOOKMARKS) ---
+  // --- MARCADORES (ISOLADOS POR USUÁRIO) ---
   async getBookmarks(bookId) {
-    const { data, error } = await this.client.from('bookmarks').select('*').eq('bookId', bookId);
+    if (!this.client) return [];
+    const userId = this.getCurrentUserId();
+    let query = this.client.from('bookmarks').select('*').eq('bookId', bookId);
+    if (userId !== 'guest') {
+      query = query.eq('user_id', userId);
+    }
+    const { data, error } = await query;
     return error ? [] : (data || []);
   }
 
@@ -164,6 +280,8 @@ class DatabaseManager {
   }
 
   async saveBookmark(bookmark) {
+    if (!this.client) return;
+    const userId = this.getCurrentUserId();
     const payload = {
       id: bookmark.id,
       bookId: bookmark.bookId,
@@ -171,11 +289,14 @@ class DatabaseManager {
       title: bookmark.title || '',
       createdAt: bookmark.createdAt || new Date().toISOString()
     };
+    if (userId !== 'guest') payload.user_id = userId;
+
     const { error } = await this.client.from('bookmarks').upsert(payload);
     if (error) console.error('Erro ao salvar marcador:', error);
   }
 
   async deleteBookmark(id) {
+    if (!this.client) return;
     const { error } = await this.client.from('bookmarks').delete().eq('id', id);
     if (error) console.error('Erro ao excluir marcador:', error);
   }
